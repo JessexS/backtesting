@@ -4,379 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Backtest Engine — Live Market Simulator</title>
+<link rel="stylesheet" href="css/styles.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
-
-:root {
-  --bg:        #06080a;
-  --s1:        #0c1014;
-  --s2:        #111820;
-  --border:    #1c2830;
-  --border2:   #243040;
-  --green:     #26de81;
-  --red:       #fc5c65;
-  --blue:      #45aaf2;
-  --yellow:    #fed330;
-  --orange:    #fd9644;
-  --purple:    #a55eea;
-  --text:      #d8e8f0;
-  --muted:     #4a6070;
-  --font-mono: 'IBM Plex Mono', monospace;
-  --font-sans: 'IBM Plex Sans', sans-serif;
-}
-
-* { margin:0; padding:0; box-sizing:border-box; }
-html { font-size:13px; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-mono);
-  height: 100vh;
-  overflow: hidden;
-}
-
-body::after {
-  content:'';
-  position:fixed; inset:0;
-  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px);
-  pointer-events:none; z-index:9999;
-}
-
-.shell {
-  display: grid;
-  grid-template-rows: 52px 1fr;
-  grid-template-columns: 248px 1fr 280px;
-  height: 100vh;
-}
-
-.topbar {
-  grid-column: 1 / -1;
-  background: var(--s1);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 18px;
-  gap: 14px;
-}
-
-.logo {
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 14px;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  flex-shrink: 0;
-}
-
-.logo-dot {
-  width: 7px; height: 7px;
-  background: var(--green);
-  border-radius: 50%;
-  box-shadow: 0 0 7px var(--green);
-  animation: blink 2s ease infinite;
-}
-.logo-dot.live   { background:var(--red);    box-shadow:0 0 9px var(--red);    animation:blink 0.6s ease infinite; }
-.logo-dot.paused { background:var(--yellow); box-shadow:0 0 7px var(--yellow); animation:none; }
-
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
-
-.vdiv { width:1px; height:20px; background:var(--border); flex-shrink:0; }
-
-.ticker { display:flex; gap:18px; flex:1; overflow:hidden; }
-.tick-item { display:flex; align-items:center; gap:7px; font-size:11px; flex-shrink:0; }
-.tick-label { color:var(--muted); }
-.tick-val   { font-weight:500; transition:color 0.15s; }
-.tick-val.fu { color:var(--green); }
-.tick-val.fd { color:var(--red);   }
-
-.topbar-right { margin-left:auto; display:flex; gap:7px; align-items:center; flex-shrink:0; }
-
-.btn {
-  font-family:var(--font-mono); font-size:11px;
-  padding:5px 13px; border:1px solid; cursor:pointer;
-  transition:all 0.18s; letter-spacing:0.5px; white-space:nowrap;
-}
-.btn-green  { background:var(--green);  border-color:var(--green);  color:#06080a; font-weight:700; }
-.btn-green:hover  { box-shadow:0 0 14px rgba(38,222,129,0.5); }
-.btn-red    { background:var(--red);    border-color:var(--red);    color:#fff;    font-weight:700; }
-.btn-red:hover    { box-shadow:0 0 14px rgba(252,92,101,0.45); }
-.btn-yellow { background:var(--yellow); border-color:var(--yellow); color:#06080a; font-weight:700; }
-.btn-yellow:hover { box-shadow:0 0 12px rgba(254,211,48,0.4); }
-.btn-blue   { background:transparent;  border-color:var(--blue);   color:var(--blue); }
-.btn-blue:hover   { background:rgba(69,170,242,0.1); }
-.btn-ghost  { background:transparent;  border-color:var(--border2); color:var(--muted); }
-.btn-ghost:hover  { border-color:var(--text); color:var(--text); }
-.btn:disabled { opacity:0.35; cursor:not-allowed; pointer-events:none; }
-.btn-sm { padding:3px 8px; font-size:10px; }
-.btn-purple { background:var(--purple); border-color:var(--purple); color:#fff; font-weight:700; }
-.btn-purple:hover { box-shadow:0 0 14px rgba(165,94,234,0.5); }
-.btn-orange { background:var(--orange); border-color:var(--orange); color:#06080a; font-weight:700; }
-.btn-orange:hover { box-shadow:0 0 12px rgba(253,150,68,0.4); }
-
-.sidebar {
-  background:var(--s1); border-right:1px solid var(--border);
-  overflow-y:auto; padding:14px 13px;
-  display:flex; flex-direction:column; gap:14px;
-}
-.sidebar::-webkit-scrollbar { width:3px; }
-.sidebar::-webkit-scrollbar-thumb { background:var(--border2); }
-
-.sidebar-right {
-  background:var(--s1); border-left:1px solid var(--border);
-  overflow-y:auto; padding:14px 13px;
-  display:flex; flex-direction:column; gap:14px;
-}
-.sidebar-right::-webkit-scrollbar { width:3px; }
-.sidebar-right::-webkit-scrollbar-thumb { background:var(--border2); }
-
-.panel { background:var(--s2); border:1px solid var(--border); padding:12px; }
-
-.panel-title {
-  font-size:9px; letter-spacing:2.5px; text-transform:uppercase;
-  color:var(--muted); margin-bottom:12px;
-  display:flex; align-items:center; gap:8px;
-}
-.panel-title::after { content:''; flex:1; height:1px; background:var(--border); }
-
-.control { margin-bottom:10px; }
-.control:last-child { margin-bottom:0; }
-.control label { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:5px; }
-.control label span { color:var(--blue); font-weight:500; }
-
-/* Tooltip for parameter labels */
-.control label[title] { cursor:help; border-bottom:1px dotted var(--border2); }
-
-input[type=range] {
-  width:100%; -webkit-appearance:none; height:2px;
-  background:var(--border2); outline:none; cursor:pointer;
-}
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance:none; width:11px; height:11px;
-  border-radius:50%; background:var(--blue); box-shadow:0 0 5px var(--blue); cursor:pointer;
-}
-
-input[type=number], select, textarea {
-  width:100%; background:var(--bg); border:1px solid var(--border);
-  color:var(--text); font-family:var(--font-mono); font-size:11px;
-  padding:5px 8px; outline:none;
-}
-input[type=number]:focus, select:focus, textarea:focus { border-color:var(--blue); }
-select { cursor:pointer; }
-textarea { resize:vertical; min-height:60px; }
-
-.speed-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-top:8px; }
-.speed-btn {
-  font-family:var(--font-mono); font-size:11px; padding:4px 0;
-  background:var(--bg); border:1px solid var(--border); color:var(--muted);
-  cursor:pointer; text-align:center; transition:all 0.15s;
-}
-.speed-btn.active { border-color:var(--blue); color:var(--blue); background:rgba(69,170,242,0.1); }
-
-.live-counter {
-  background:var(--bg); border:1px solid var(--border);
-  padding:9px 12px; display:flex; justify-content:space-between; align-items:center;
-  margin-bottom:12px;
-}
-.lc-label { font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; }
-.lc-val   { font-size:22px; font-weight:600; color:var(--green); font-variant-numeric:tabular-nums; }
-@keyframes cpulse { 0%{transform:scale(1)} 50%{transform:scale(1.1)} 100%{transform:scale(1)} }
-.lc-val.pulse { animation:cpulse 0.25s ease; }
-
-.regime-list { display:flex; flex-direction:column; gap:5px; }
-.regime-item {
-  display:flex; align-items:center; gap:7px; padding:5px 8px;
-  border:1px solid var(--border); font-size:11px; opacity:0.35; transition:all 0.2s;
-}
-.regime-item.active { opacity:1; background:var(--bg); }
-.regime-dot  { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
-.regime-name { flex:1; }
-.regime-pct  { color:var(--muted); font-size:10px; }
-
-.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-.stat { background:var(--bg); border:1px solid var(--border); padding:9px; }
-.stat-label { font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:3px; }
-.stat-value { font-size:14px; font-weight:600; line-height:1; }
-.stat-value.sm { font-size:11px; }
-.up   { color:var(--green); }
-.down { color:var(--red);   }
-.neu  { color:var(--blue);  }
-
-.main { display:flex; flex-direction:column; overflow:hidden; }
-
-.chart-toolbar {
-  background:var(--s1); border-bottom:1px solid var(--border);
-  padding:8px 18px; display:flex; align-items:center; gap:10px;
-}
-.pair-badge { font-family:var(--font-sans); font-size:15px; font-weight:600; color:#fff; }
-
-.live-badge {
-  font-size:9px; letter-spacing:2px; padding:2px 8px;
-  font-weight:700; display:none; border-radius:1px;
-}
-.live-badge.show { display:inline-block; }
-.live-badge.live   { background:rgba(252,92,101,0.18); border:1px solid var(--red);    color:var(--red);    animation:blink 0.8s ease infinite; }
-.live-badge.paused { background:rgba(254,211,48,0.15);  border:1px solid var(--yellow); color:var(--yellow); animation:none; }
-
-.chart-area { flex:1; position:relative; min-height:0; }
-#cc { display:block; position:absolute; inset:0; width:100%!important; height:100%!important; }
-
-.tooltip-box {
-  position:absolute; background:var(--s1); border:1px solid var(--border2);
-  padding:9px 13px; font-size:11px; pointer-events:none; z-index:100; display:none; min-width:150px;
-}
-.tooltip-box.vis { display:block; }
-.tt-row { display:flex; justify-content:space-between; gap:14px; margin-bottom:3px; }
-.tt-row:last-child { margin:0; }
-.tt-key { color:var(--muted); }
-.tt-val { font-weight:500; }
-
-.timeline-area { padding:8px 18px 9px; border-top:1px solid var(--border); background:var(--s1); }
-.tl-label { font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:5px; }
-.timeline-bar { height:10px; display:flex; gap:1px; overflow:hidden; border-radius:2px; }
-.tl-seg { height:100%; transition:opacity 0.15s; cursor:default; }
-.tl-seg:hover { opacity:0.7; }
-
-.equity-area {
-  height:100px; position:relative; border-top:1px solid var(--border); background:var(--s1);
-  flex-shrink:0;
-}
-#eqc { display:block; position:absolute; inset:0; width:100%!important; height:100%!important; }
-
-.export-bar {
-  border-top:1px solid var(--border); background:var(--s1);
-  padding:9px 18px; display:flex; align-items:center; gap:10px; font-size:11px;
-}
-.export-info { color:var(--muted); flex:1; }
-.export-info strong { color:var(--text); }
-
-.nc-flash {
-  position:absolute; right:0; top:0; bottom:0; width:2px;
-  background:var(--green); opacity:0; pointer-events:none;
-}
-@keyframes ncf { 0%{opacity:0.8} 100%{opacity:0} }
-.nc-flash.f { animation:ncf 0.3s ease forwards; }
-
-.trade-btns { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
-
-.toggle-row { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--muted); }
-.toggle { position:relative; width:34px; height:18px; cursor:pointer; }
-.toggle input { display:none; }
-.toggle-slider {
-  position:absolute; inset:0; background:var(--border2); border-radius:9px; transition:0.2s;
-}
-.toggle-slider::before {
-  content:''; position:absolute; left:2px; top:2px; width:14px; height:14px;
-  background:var(--muted); border-radius:50%; transition:0.2s;
-}
-.toggle input:checked + .toggle-slider { background:var(--green); }
-.toggle input:checked + .toggle-slider::before { transform:translateX(16px); background:#fff; }
-
-.trade-log { max-height:180px; overflow-y:auto; font-size:10px; }
-.trade-log::-webkit-scrollbar { width:2px; }
-.trade-log::-webkit-scrollbar-thumb { background:var(--border2); }
-.trade-log-item {
-  display:flex; gap:6px; padding:4px 6px; border-bottom:1px solid var(--border);
-  align-items:center;
-}
-.trade-log-item .dir { font-weight:700; font-size:9px; padding:1px 4px; }
-.trade-log-item .dir.long { background:rgba(38,222,129,0.15); color:var(--green); }
-.trade-log-item .dir.short { background:rgba(252,92,101,0.15); color:var(--red); }
-.trade-log-item .pnl { margin-left:auto; font-weight:600; }
-
-.strat-error {
-  background:rgba(252,92,101,0.1); border:1px solid var(--red);
-  color:var(--red); font-size:10px; padding:6px 8px; margin-top:6px;
-  max-height:60px; overflow-y:auto; display:none; word-break:break-all;
-}
-.strat-error.show { display:block; }
-
-.mc-results { font-size:10px; max-height:200px; overflow-y:auto; }
-.mc-results::-webkit-scrollbar { width:2px; }
-.mc-results::-webkit-scrollbar-thumb { background:var(--border2); }
-.mc-table { width:100%; border-collapse:collapse; font-size:10px; }
-.mc-table th { text-align:left; color:var(--muted); padding:3px 4px; border-bottom:1px solid var(--border); font-weight:400; font-size:9px; letter-spacing:1px; text-transform:uppercase; }
-.mc-table td { padding:3px 4px; border-bottom:1px solid var(--border); }
-
-.modal-overlay {
-  position:fixed; inset:0; background:rgba(6,8,10,0.88);
-  z-index:1000; display:none; align-items:center; justify-content:center;
-  backdrop-filter:blur(4px);
-}
-.modal-overlay.show { display:flex; }
-.modal {
-  background:var(--s1); border:1px solid var(--border2);
-  padding:30px; width:440px; max-width:92vw;
-  animation:min 0.18s ease;
-}
-@keyframes min { from{opacity:0;transform:translateY(-14px) scale(0.97)} to{opacity:1;transform:none} }
-.modal-title { font-family:var(--font-sans); font-size:17px; font-weight:600; color:#fff; margin-bottom:5px; }
-.modal-sub   { font-size:11px; color:var(--muted); margin-bottom:22px; }
-
-.export-opts { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
-.exp-opt {
-  border:1px solid var(--border2); background:var(--s2);
-  padding:18px 14px; cursor:pointer; transition:all 0.18s; text-align:center;
-}
-.exp-opt:hover   { border-color:var(--blue); background:rgba(69,170,242,0.06); }
-.exp-opt.sel     { border-color:var(--green); background:rgba(38,222,129,0.06); }
-.exp-icon  { font-size:26px; margin-bottom:9px; }
-.exp-title { font-size:13px; font-weight:600; color:#fff; margin-bottom:4px; }
-.exp-desc  { font-size:10px; color:var(--muted); line-height:1.5; }
-
-.modal-footer { display:flex; gap:8px; justify-content:flex-end; }
-
-.input-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-.input-group { margin-bottom:8px; }
-.input-group label { display:block; font-size:10px; color:var(--muted); margin-bottom:3px; letter-spacing:0.5px; }
-
-.panel-collapse { cursor:pointer; user-select:none; }
-.panel-collapse .panel-title::before { content:'▸'; margin-right:4px; transition:transform 0.2s; display:inline-block; }
-.panel-collapse.open .panel-title::before { transform:rotate(90deg); }
-.panel-body { display:none; }
-.panel-collapse.open .panel-body { display:block; }
-
-.pos-list { font-size:10px; }
-.pos-item {
-  background:var(--bg); border:1px solid var(--border); padding:6px 8px; margin-bottom:4px;
-}
-.pos-item .pos-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
-.pos-item .pos-detail { display:flex; gap:8px; color:var(--muted); font-size:9px; flex-wrap:wrap; }
-.pos-close-btn { font-size:9px; padding:1px 6px; cursor:pointer; background:var(--red); border:1px solid var(--red); color:#fff; }
-
-/* Indicator legend badges */
-.ind-legend { display:flex; flex-wrap:wrap; gap:4px; padding:2px 18px; background:var(--s1); border-bottom:1px solid var(--border); }
-.ind-badge { font-size:9px; padding:1px 6px; border:1px solid; border-radius:2px; }
-
-/* Strategy settings sub-panel */
-.strat-settings { background:var(--bg); border:1px solid var(--border); padding:8px; margin-top:8px; max-height:300px; overflow-y:auto; }
-.strat-settings::-webkit-scrollbar { width:2px; }
-.strat-settings::-webkit-scrollbar-thumb { background:var(--border2); }
-.strat-settings .input-row { margin-bottom:2px; }
-.strat-settings .input-group { margin-bottom:4px; }
-.strat-settings .input-group label { font-size:9px; }
-.strat-settings .section-label { font-size:8px; letter-spacing:2px; text-transform:uppercase; color:var(--blue); margin:6px 0 4px; }
-
-/* Manual trade blocked notice */
-.trade-blocked { font-size:9px; color:var(--orange); text-align:center; padding:4px; display:none; }
-.trade-blocked.show { display:block; }
-</style>
 </head>
 <body>
-<div class="shell">
+<div class="shell" id="shell">
 
-  <!-- TOPBAR -->
   <header class="topbar">
     <div class="logo">
       <div class="logo-dot" id="dot"></div>
       BACKTEST ENGINE
-      <span style="color:var(--muted);font-weight:300;font-size:11px">// Live Simulator</span>
+      <span class="logo-sub">// Live Simulator</span>
     </div>
-    <div class="vdiv"></div>
-    <div class="ticker">
+    <div class="vdiv desktop-only"></div>
+    <div class="ticker desktop-only">
       <div class="tick-item"><span class="tick-label">PRICE</span>  <span class="tick-val" id="tkP">—</span></div>
       <div class="tick-item"><span class="tick-label">CHG</span>    <span class="tick-val" id="tkC">—</span></div>
       <div class="tick-item"><span class="tick-label">HIGH</span>   <span class="tick-val" id="tkH">—</span></div>
@@ -386,16 +27,16 @@ textarea { resize:vertical; min-height:60px; }
       <div class="tick-item"><span class="tick-label">EQUITY</span> <span class="tick-val" id="tkEq">—</span></div>
     </div>
     <div class="topbar-right">
-      <button class="btn btn-green"  id="btnStart" onclick="startLive()">▶ START</button>
-      <button class="btn btn-yellow" id="btnPause" onclick="pauseLive()" disabled>⏸ PAUSE</button>
-      <button class="btn btn-red"    id="btnStop"  onclick="stopLive()"  disabled>■ STOP</button>
-      <div class="vdiv"></div>
-      <button class="btn btn-ghost"  onclick="resetAll()">⟳ RESET</button>
+      <button class="btn btn-green" id="btnStart">&#9654; START</button>
+      <button class="btn btn-yellow" id="btnPause" disabled>&#9208; PAUSE</button>
+      <button class="btn btn-red" id="btnStop" disabled>&#9632; STOP</button>
+      <div class="vdiv desktop-only"></div>
+      <button class="btn btn-ghost" id="btnReset">&#10227; RESET</button>
     </div>
   </header>
 
   <!-- LEFT SIDEBAR -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebarLeft">
     <div class="panel">
       <div class="panel-title">Live Session</div>
       <div class="live-counter">
@@ -403,40 +44,35 @@ textarea { resize:vertical; min-height:60px; }
         <span class="lc-val" id="liveCount">0</span>
       </div>
       <div class="panel-title" style="margin-bottom:6px">Nopeus</div>
-      <div class="speed-grid">
-        <div class="speed-btn" data-ms="2000" onclick="setSpeed(2000)">0.5×</div>
-        <div class="speed-btn active" data-ms="800" onclick="setSpeed(800)">1×</div>
-        <div class="speed-btn" data-ms="250" onclick="setSpeed(250)">3×</div>
-        <div class="speed-btn" data-ms="60"  onclick="setSpeed(60)">15×</div>
+      <div class="speed-grid" id="speedGrid">
+        <div class="speed-btn" data-ms="2000">0.5×</div>
+        <div class="speed-btn active" data-ms="800">1×</div>
+        <div class="speed-btn" data-ms="250">3×</div>
+        <div class="speed-btn" data-ms="60">15×</div>
       </div>
     </div>
 
     <div class="panel">
       <div class="panel-title">Parametrit</div>
       <div class="control">
-        <label title="Synteettisen markkinan aloitushinta. Tämä on ensimmäisen kynttilän hinta josta simulaatio alkaa. Korkeampi hinta tuottaa suurempia absoluuttisia hintaliikkeitä mutta suhteelliset muutokset pysyvät samoina.">Aloitushinta <span id="lbS">10 000</span></label>
-        <input type="range" id="rS" min="100" max="100000" step="100" value="10000"
-          oninput="document.getElementById('lbS').textContent=(+this.value).toLocaleString('fi')">
+        <label title="Synteettisen markkinan aloitushinta. Tämä on ensimmäisen kynttilän hinta josta simulaatio alkaa.">Aloitushinta <span id="lbS">10 000</span></label>
+        <input type="range" id="rS" min="100" max="100000" step="100" value="10000">
       </div>
       <div class="control">
-        <label title="Perusvolatiliteetti (%). Määrittää kynttilöiden hintavaihtelun suuruuden. Matala arvo (0.3%) tuottaa rauhallisia, pieniä kynttilöitä. Korkea arvo (5%) tuottaa suuria, rajuja liikkeitä. Jokainen regiimi skaalaa tätä omalla kertoimellaan (esim. Bull 0.8×, Crash 4.0×).">Volatiliteetti <span id="lbV">1.5%</span></label>
-        <input type="range" id="rV" min="0.3" max="5" step="0.1" value="1.5"
-          oninput="document.getElementById('lbV').textContent=this.value+'%'">
+        <label title="Perusvolatiliteetti (%). Määrittää kynttilöiden hintavaihtelun suuruuden. Matala arvo (0.3%) tuottaa pieniä kynttilöitä, korkea arvo (5%) suuria.">Volatiliteetti <span id="lbV">1.5%</span></label>
+        <input type="range" id="rV" min="0.3" max="5" step="0.1" value="1.5">
       </div>
       <div class="control">
-        <label title="Trendi-bias lisää jokaiseen kynttilään pienen suuntaisen painotuksen. Positiivinen arvo (+0.5%) painottaa hintaa ylöspäin, negatiivinen alaspäin. Tämä lisätään regiimin oman driftin päälle. 0% = ei ylimääräistä suuntaa.">Trendi-bias <span id="lbB">0.00%</span></label>
-        <input type="range" id="rB" min="-0.5" max="0.5" step="0.01" value="0"
-          oninput="document.getElementById('lbB').textContent=(+this.value>=0?'+':'')+this.value+'%'">
+        <label title="Trendi-bias lisää jokaiseen kynttilään suuntaisen painotuksen. Positiivinen ylös, negatiivinen alas.">Trendi-bias <span id="lbB">0.00%</span></label>
+        <input type="range" id="rB" min="-0.5" max="0.5" step="0.01" value="0">
       </div>
       <div class="control">
-        <label title="Regiimin vaihtuvuustodennäköisyys (%). Jokaisella kynttilällä on tämä todennäköisyys siirtyä toiseen regiimiin. Matala arvo (1%) = pitkät, vakaat regiimit. Korkea arvo (30%) = tiheät regiimin vaihdot ja sekavampi markkina.">Regiimin vaihtuvuus <span id="lbSw">8%</span></label>
-        <input type="range" id="rSw" min="1" max="30" step="1" value="8"
-          oninput="document.getElementById('lbSw').textContent=this.value+'%'">
+        <label title="Regiimin vaihtuvuustodennäköisyys (%). Matala = pitkät regiimit, korkea = tiheät vaihdot.">Regiimin vaihtuvuus <span id="lbSw">8%</span></label>
+        <input type="range" id="rSw" min="1" max="30" step="1" value="8">
       </div>
       <div class="control">
-        <label title="RNG-siemenluku (seed). Sama seed tuottaa aina identtisen hintapolun, mikä mahdollistaa strategioiden vertailun samoilla markkinaolosuhteilla. Eri seed = erilainen hintapolku. Käytetään myös Monte Carlo -ajojen pohjana.">Seed <span id="lbSd">42</span></label>
-        <input type="range" id="rSd" min="1" max="99999" step="1" value="42"
-          oninput="document.getElementById('lbSd').textContent=this.value">
+        <label title="RNG-siemenluku (seed). Sama seed = identtinen hintapolku. Käytetään myös Monte Carlo -ajojen pohjana.">Seed <span id="lbSd">42</span></label>
+        <input type="range" id="rSd" min="1" max="99999" step="1" value="42">
       </div>
     </div>
 
@@ -455,23 +91,23 @@ textarea { resize:vertical; min-height:60px; }
     <div class="panel">
       <div class="panel-title">Statistiikka</div>
       <div class="stats-grid">
-        <div class="stat"><div class="stat-label">Aloitus</div>     <div class="stat-value neu"  id="stS">—</div></div>
-        <div class="stat"><div class="stat-label">Nykyinen</div>    <div class="stat-value"       id="stN">—</div></div>
-        <div class="stat"><div class="stat-label">High</div>        <div class="stat-value up"    id="stH">—</div></div>
-        <div class="stat"><div class="stat-label">Low</div>         <div class="stat-value down"  id="stL">—</div></div>
-        <div class="stat"><div class="stat-label">Max Drawdown</div><div class="stat-value down"  id="stDD">—</div></div>
-        <div class="stat"><div class="stat-label">Tuotto</div>      <div class="stat-value"       id="stRt">—</div></div>
+        <div class="stat"><div class="stat-label">Aloitus</div>     <div class="stat-value neu" id="stS">—</div></div>
+        <div class="stat"><div class="stat-label">Nykyinen</div>    <div class="stat-value" id="stN">—</div></div>
+        <div class="stat"><div class="stat-label">High</div>        <div class="stat-value up" id="stH">—</div></div>
+        <div class="stat"><div class="stat-label">Low</div>         <div class="stat-value down" id="stL">—</div></div>
+        <div class="stat"><div class="stat-label">Max Drawdown</div><div class="stat-value down" id="stDD">—</div></div>
+        <div class="stat"><div class="stat-label">Tuotto</div>      <div class="stat-value" id="stRt">—</div></div>
       </div>
     </div>
   </aside>
 
   <!-- MAIN -->
-  <main class="main">
+  <main class="main" id="mainArea">
     <div class="chart-toolbar">
       <span class="pair-badge">BTC/USDT</span>
       <span class="live-badge" id="liveBadge">LIVE</span>
       <div class="ind-legend" id="indLegend"></div>
-      <span style="margin-left:auto;font-size:10px;color:var(--muted)">Scroll = pan · Ctrl+Scroll = zoom · Drag = pan</span>
+      <span class="chart-hint desktop-only">Scroll = pan · Ctrl+Scroll = zoom · Drag = pan</span>
     </div>
 
     <div class="chart-area">
@@ -499,20 +135,20 @@ textarea { resize:vertical; min-height:60px; }
     </div>
 
     <div class="export-bar">
-      <span class="export-info" id="expInfo">Paina <strong>▶ START</strong> aloittaaksesi live-datan tallennuksen.</span>
-      <button class="btn btn-blue btn-sm" id="btnExportTrades" onclick="exportTradeCSV()" disabled>↓ TRADES CSV</button>
-      <button class="btn btn-blue" id="btnExport" onclick="openModal()" disabled>↓ EXPORTOI DATA</button>
+      <span class="export-info" id="expInfo">Paina <strong>&#9654; START</strong> aloittaaksesi live-datan tallennuksen.</span>
+      <button class="btn btn-blue btn-sm" id="btnExportTrades" disabled>&#8595; TRADES CSV</button>
+      <button class="btn btn-blue" id="btnExport" disabled>&#8595; EXPORTOI DATA</button>
     </div>
   </main>
 
-  <!-- RIGHT SIDEBAR: Trading Panel -->
-  <aside class="sidebar-right" id="tradingPanel">
+  <!-- RIGHT SIDEBAR -->
+  <aside class="sidebar-right" id="sidebarRight">
     <div class="panel">
       <div class="panel-title">Trading Mode</div>
       <div class="input-row">
         <div class="input-group">
           <label>Mode</label>
-          <select id="tMode" onchange="onTradingModeChange()">
+          <select id="tMode">
             <option value="spot">Spot</option>
             <option value="futures" selected>Futures (Isolated)</option>
           </select>
@@ -548,96 +184,35 @@ textarea { resize:vertical; min-height:60px; }
       <div class="input-group"><label>Trailing Stop %</label><input type="number" id="tTrail" value="0" step="0.1" min="0"></div>
       <div class="input-group"><label>Partial Fill %</label><input type="number" id="tPartialFill" value="100" step="5" min="5" max="100"></div>
       <div class="trade-btns" id="manualTradeBtns">
-        <button class="btn btn-green btn-sm" id="btnManualBuy" onclick="manualBuy()">▲ BUY/LONG</button>
-        <button class="btn btn-red btn-sm" id="btnManualSell" onclick="manualSell()">▼ SELL/SHORT</button>
+        <button class="btn btn-green btn-sm" id="btnManualBuy">&#9650; BUY/LONG</button>
+        <button class="btn btn-red btn-sm" id="btnManualSell">&#9660; SELL/SHORT</button>
       </div>
       <div class="trade-blocked" id="tradeBlockedMsg">Manuaalinen kaupankäynti estetty strategian ollessa aktiivinen</div>
     </div>
 
-    <!-- Strategy Engine with dropdown -->
-    <div class="panel panel-collapse open" onclick="this.classList.toggle('open')">
+    <!-- Strategy Engine -->
+    <div class="panel panel-collapse open" id="panelStrategy">
       <div class="panel-title">Strategy Engine</div>
-      <div class="panel-body" onclick="event.stopPropagation()">
+      <div class="panel-body" id="strategyBody">
         <div class="toggle-row" style="margin-bottom:8px">
           <span>Enable Strategy</span>
-          <label class="toggle"><input type="checkbox" id="tStratEnabled" onchange="onStrategyToggle()"><span class="toggle-slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="tStratEnabled"><span class="toggle-slider"></span></label>
         </div>
         <div class="input-group">
           <label>Select Strategy</label>
-          <select id="tStratSelect" onchange="onStrategySelect()">
+          <select id="tStratSelect">
             <option value="custom">Custom (paste code)</option>
-            <option value="arm_v2">ARM v2.0 — Adaptive Regime Momentum</option>
-            <option value="ml_knn">ML-KNN Lorentzian Classification</option>
           </select>
         </div>
-        <!-- ML-KNN Settings (shown when ml_knn selected) -->
-        <div class="strat-settings" id="mlKnnSettings" style="display:none">
-          <div class="section-label">General</div>
-          <div class="input-row">
-            <div class="input-group"><label>Neighbors (k)</label><input type="number" id="mlK" value="8" min="1" max="100"></div>
-            <div class="input-group"><label>Max Bars Back</label><input type="number" id="mlMaxBars" value="2000" min="100" max="5000"></div>
-          </div>
-          <div class="input-row">
-            <div class="input-group"><label>Feature Count</label><input type="number" id="mlFeatures" value="5" min="2" max="5"></div>
-            <div class="input-group"><label>Color Compression</label><input type="number" id="mlColorComp" value="1" min="1" max="10"></div>
-          </div>
-          <div class="section-label">Filters</div>
-          <div class="input-row">
-            <div class="input-group"><label>Volatility Filter</label><select id="mlVolFilter"><option value="1" selected>On</option><option value="0">Off</option></select></div>
-            <div class="input-group"><label>Regime Filter</label><select id="mlRegFilter"><option value="1" selected>On</option><option value="0">Off</option></select></div>
-          </div>
-          <div class="input-row">
-            <div class="input-group"><label>Regime Threshold</label><input type="number" id="mlRegThresh" value="-0.1" step="0.1" min="-10" max="10"></div>
-            <div class="input-group"><label>ADX Filter</label><select id="mlAdxFilter"><option value="0" selected>Off</option><option value="1">On</option></select></div>
-          </div>
-          <div class="input-group"><label>ADX Threshold</label><input type="number" id="mlAdxThresh" value="20" min="0" max="100"></div>
-          <div class="section-label">Trend Filters</div>
-          <div class="input-row">
-            <div class="input-group"><label>EMA Filter</label><select id="mlEmaFilter"><option value="1" selected>On</option><option value="0">Off</option></select></div>
-            <div class="input-group"><label>EMA Period</label><input type="number" id="mlEmaPeriod" value="200" min="10" max="500"></div>
-          </div>
-          <div class="input-row">
-            <div class="input-group"><label>SMA Filter</label><select id="mlSmaFilter"><option value="0" selected>Off</option><option value="1">On</option></select></div>
-            <div class="input-group"><label>SMA Period</label><input type="number" id="mlSmaPeriod" value="200" min="10" max="500"></div>
-          </div>
-          <div class="section-label">Kernel Regression</div>
-          <div class="input-row">
-            <div class="input-group"><label>Use Kernel Filter</label><select id="mlKernelFilter"><option value="1" selected>On</option><option value="0">Off</option></select></div>
-            <div class="input-group"><label>Kernel Smoothing</label><select id="mlKernelSmooth"><option value="0" selected>Off</option><option value="1">On</option></select></div>
-          </div>
-          <div class="input-row">
-            <div class="input-group"><label>Lookback (h)</label><input type="number" id="mlKernH" value="8" min="3" max="50"></div>
-            <div class="input-group"><label>Rel. Weight (r)</label><input type="number" id="mlKernR" value="8" step="0.25" min="0.25" max="25"></div>
-          </div>
-          <div class="input-row">
-            <div class="input-group"><label>Regression Level</label><input type="number" id="mlKernLevel" value="25" min="2" max="25"></div>
-            <div class="input-group"><label>Lag</label><input type="number" id="mlKernLag" value="2" min="1" max="2"></div>
-          </div>
-          <div class="section-label">Exits</div>
-          <div class="input-row">
-            <div class="input-group"><label>Default Exits</label><select id="mlDefExits"><option value="1" selected>On</option><option value="0">Off</option></select></div>
-            <div class="input-group"><label>Dynamic Exits</label><select id="mlDynExits"><option value="0" selected>Off</option><option value="1">On</option></select></div>
-          </div>
-          <div class="input-group"><label>Hold Bars</label><input type="number" id="mlHoldBars" value="4" min="1" max="20"></div>
-          <div class="section-label">Feature Params (RSI/WT/CCI/ADX)</div>
-          <div class="input-row">
-            <div class="input-group"><label>F1 RSI Period</label><input type="number" id="mlF1a" value="14" min="2" max="50"></div>
-            <div class="input-group"><label>F2 WT Period</label><input type="number" id="mlF2a" value="10" min="2" max="50"></div>
-          </div>
-          <div class="input-row">
-            <div class="input-group"><label>F3 CCI Period</label><input type="number" id="mlF3a" value="20" min="2" max="50"></div>
-            <div class="input-group"><label>F4 ADX Period</label><input type="number" id="mlF4a" value="20" min="2" max="50"></div>
-          </div>
-          <div class="input-group"><label>F5 RSI Short Period</label><input type="number" id="mlF5a" value="9" min="2" max="50"></div>
-        </div>
+        <div id="stratParamsContainer"></div>
         <div class="input-group" style="margin-top:8px">
           <label>Strategy Code (JS)</label>
-          <textarea id="tStratCode" rows="6" placeholder="// Select a preset strategy above or paste custom code"></textarea>
+          <textarea id="tStratCode" rows="6" placeholder="// Select a preset strategy or paste custom code"></textarea>
         </div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-blue btn-sm" onclick="loadStrategy()">Load Strategy</button>
+          <button class="btn btn-blue btn-sm" id="btnLoadStrat">Load Strategy</button>
           <label class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;cursor:pointer">
-            Upload File <input type="file" accept=".js,.txt" style="display:none" onchange="uploadStrategy(event)">
+            Upload File <input type="file" accept=".js,.txt" style="display:none" id="btnUploadStrat">
           </label>
         </div>
         <div class="strat-error" id="stratError"></div>
@@ -645,17 +220,17 @@ textarea { resize:vertical; min-height:60px; }
     </div>
 
     <!-- Positions -->
-    <div class="panel panel-collapse open" onclick="this.classList.toggle('open')">
+    <div class="panel panel-collapse open" id="panelPositions">
       <div class="panel-title">Open Positions <span id="posCount" style="color:var(--blue)">(0)</span></div>
-      <div class="panel-body" onclick="event.stopPropagation()">
+      <div class="panel-body" id="positionsBody">
         <div class="pos-list" id="posList"></div>
       </div>
     </div>
 
     <!-- Performance -->
-    <div class="panel panel-collapse open" onclick="this.classList.toggle('open')">
+    <div class="panel panel-collapse open" id="panelPerformance">
       <div class="panel-title">Performance</div>
-      <div class="panel-body" onclick="event.stopPropagation()">
+      <div class="panel-body" id="performanceBody">
         <div class="stats-grid" id="perfGrid">
           <div class="stat"><div class="stat-label">Balance</div><div class="stat-value sm neu" id="pmBal">—</div></div>
           <div class="stat"><div class="stat-label">Equity</div><div class="stat-value sm neu" id="pmEq">—</div></div>
@@ -676,1819 +251,113 @@ textarea { resize:vertical; min-height:60px; }
     </div>
 
     <!-- Trade Log -->
-    <div class="panel panel-collapse" onclick="this.classList.toggle('open')">
+    <div class="panel panel-collapse" id="panelTradeLog">
       <div class="panel-title">Trade Log <span id="tradeCount" style="color:var(--blue)">(0)</span></div>
-      <div class="panel-body" onclick="event.stopPropagation()">
+      <div class="panel-body" id="tradeLogBody">
         <div class="trade-log" id="tradeLog"></div>
       </div>
     </div>
 
     <!-- Monte Carlo -->
-    <div class="panel panel-collapse" onclick="this.classList.toggle('open')">
+    <div class="panel panel-collapse" id="panelMonteCarlo">
       <div class="panel-title">Monte Carlo</div>
-      <div class="panel-body" onclick="event.stopPropagation()">
+      <div class="panel-body" id="monteCarloBody">
         <div class="input-row">
           <div class="input-group"><label>Runs</label><input type="number" id="mcRuns" value="50" step="10" min="5" max="500"></div>
           <div class="input-group"><label>Candles/Run</label><input type="number" id="mcCandles" value="500" step="50" min="50" max="5000"></div>
         </div>
-        <div class="toggle-row" style="margin-bottom:8px;margin-top:4px">
+        <div class="input-group">
+          <label>MC Mode</label>
+          <select id="mcMode">
+            <option value="seed">Seed Only</option>
+            <option value="scramble">Parameter Scramble</option>
+            <option value="combined">Combined Chaos</option>
+            <option value="stress">Stress Test</option>
+          </select>
+        </div>
+        <div class="input-group" id="mcChaosPresetGroup" style="display:none">
+          <label>Chaos Preset</label>
+          <select id="mcChaosPreset">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="extreme">Extreme</option>
+          </select>
+        </div>
+        <div class="input-group" id="mcScrambleModeGroup" style="display:none">
+          <label>Scramble Distribution</label>
+          <select id="mcScrambleMode">
+            <option value="gaussian" selected>Gaussian</option>
+            <option value="uniform">Uniform</option>
+            <option value="chaos">Deterministic Chaos</option>
+          </select>
+        </div>
+        <div class="input-group" id="mcIntensityGroup" style="display:none">
+          <label>Intensity <span id="lbMcIntensity">30%</span></label>
+          <input type="range" id="mcIntensity" min="1" max="100" value="30">
+        </div>
+        <div class="mc-scramble-checks" id="mcScrambleChecks" style="display:none">
+          <div class="section-label" style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--blue);margin:6px 0 4px">Scramble Parameters</div>
+          <label class="mc-check"><input type="checkbox" id="mcScrVol" checked> Volatility</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrDrift" checked> Drift</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrRegime"> Regime Transitions</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrFee" checked> Fee %</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrSlip" checked> Slippage %</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrSpread"> Spread</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrMaint"> Maintenance Margin</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrLev"> Leverage</label>
+          <label class="mc-check"><input type="checkbox" id="mcScrSize"> Position Size Mult.</label>
+        </div>
+        <div class="toggle-row" style="margin-bottom:8px;margin-top:8px">
           <span>Overlay Equity Curves</span>
           <label class="toggle"><input type="checkbox" id="mcOverlay"><span class="toggle-slider"></span></label>
         </div>
-        <button class="btn btn-purple btn-sm" onclick="runMonteCarlo()" id="btnMC" style="width:100%;margin-bottom:8px">▶ RUN MONTE CARLO</button>
+        <button class="btn btn-purple btn-sm" id="btnMC" style="width:100%;margin-bottom:4px">&#9654; RUN MONTE CARLO</button>
+        <div id="mcProgress" style="display:none;margin-bottom:4px">
+          <div class="mc-progress-bar"><div class="mc-progress-fill" id="mcProgressFill"></div></div>
+          <span id="mcProgressText" style="font-size:9px;color:var(--muted)"></span>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="btn btn-ghost btn-sm" id="btnMcExportCsv" disabled>&#8595; CSV</button>
+          <button class="btn btn-ghost btn-sm" id="btnMcExportJson" disabled>&#8595; JSON</button>
+        </div>
         <div class="mc-results" id="mcResults"></div>
       </div>
     </div>
   </aside>
 </div>
 
+<!-- MOBILE TAB BAR -->
+<nav class="mobile-tabs" id="mobileTabs">
+  <button class="mob-tab active" data-tab="chart">Chart</button>
+  <button class="mob-tab" data-tab="trading">Trading</button>
+  <button class="mob-tab" data-tab="montecarlo">Monte Carlo</button>
+  <button class="mob-tab" data-tab="performance">Performance</button>
+</nav>
+
 <!-- EXPORT MODAL -->
-<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+<div class="modal-overlay" id="modal">
   <div class="modal">
     <div class="modal-title">Exportoi markkinadata</div>
     <div class="modal-sub" id="modalSub">—</div>
     <div class="export-opts">
-      <div class="exp-opt sel" id="optXlsx" onclick="selFmt('xlsx')">
-        <div class="exp-icon">📊</div>
+      <div class="exp-opt sel" id="optXlsx" data-fmt="xlsx">
+        <div class="exp-icon">&#128202;</div>
         <div class="exp-title">Excel (.xlsx)</div>
         <div class="exp-desc">OHLCV-data + regiimitilastot kahdella välilehdellä.</div>
       </div>
-      <div class="exp-opt" id="optJson" onclick="selFmt('json')">
+      <div class="exp-opt" id="optJson" data-fmt="json">
         <div class="exp-icon">{ }</div>
         <div class="exp-title">JSON</div>
         <div class="exp-desc">Täydellinen raakadata ohjelmalliseen käyttöön.</div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Peruuta</button>
-      <button class="btn btn-green" onclick="doExport()">↓ Lataa tiedosto</button>
+      <button class="btn btn-ghost" id="btnModalCancel">Peruuta</button>
+      <button class="btn btn-green" id="btnModalExport">&#8595; Lataa tiedosto</button>
     </div>
   </div>
 </div>
 
-<script src="./arm_strategy_v2.js"></script>
-<script>
-// ═══════════════════════════════════════════════════════════════
-// PART 1: RNG + Regime System + Gen (Market Generator)
-// ═══════════════════════════════════════════════════════════════
-
-function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-
-const REGIMES = {
-  bull:     { drift:  0.003, vM: 0.8,  mr: 0, dur:[20,80], color:'#26de81' },
-  bear:     { drift: -0.003, vM: 1.0,  mr: 0, dur:[15,60], color:'#fc5c65' },
-  sideways: { drift:  0,     vM: 0.5,  mr: 0.15, dur:[30,100], color:'#45aaf2' },
-  swing:    { drift:  0,     vM: 1.3,  mr: 0.08, dur:[20,60], color:'#fed330', sc:20 },
-  breakout: { drift:  0.006, vM: 2.5,  mr: 0, dur:[10,30], color:'#fd9644' },
-  crash:    { drift: -0.015, vM: 4.0,  mr: 0, dur:[5,20], color:'#a55eea' }
-};
-const REGIME_NAMES = Object.keys(REGIMES);
-const TRANS = {
-  bull:     { bull:0.65, bear:0.05, sideways:0.12, swing:0.10, breakout:0.06, crash:0.02 },
-  bear:     { bull:0.05, bear:0.60, sideways:0.15, swing:0.10, breakout:0.02, crash:0.08 },
-  sideways: { bull:0.15, bear:0.12, sideways:0.45, swing:0.18, breakout:0.07, crash:0.03 },
-  swing:    { bull:0.12, bear:0.10, sideways:0.20, swing:0.40, breakout:0.10, crash:0.08 },
-  breakout: { bull:0.25, bear:0.05, sideways:0.10, swing:0.10, breakout:0.40, crash:0.10 },
-  crash:    { bull:0.05, bear:0.30, sideways:0.20, swing:0.15, breakout:0.05, crash:0.25 }
-};
-
-class Gen {
-  constructor(seed, startP, baseV, bias, switchPct) {
-    this.rng = mulberry32(seed);
-    this.price = startP; this.baseV = baseV/100; this.bias = bias/100; this.switchPct = switchPct/100;
-    this.regime = 'sideways'; this.regimeDur = 0; this.maxDur = 50;
-    this.anchor = startP; this.swingPhase = 0;
-    this.history = []; this.regimeCounts = {};
-    REGIME_NAMES.forEach(r => this.regimeCounts[r] = 0);
-    this._pickDur();
-  }
-  _pickDur() {
-    var d = REGIMES[this.regime].dur;
-    this.maxDur = d[0] + Math.floor(this.rng() * (d[1] - d[0]));
-  }
-  _transition() {
-    var t = TRANS[this.regime]; var r = this.rng(); var cum = 0;
-    for (var k of REGIME_NAMES) { cum += t[k]; if (r < cum) { this.regime = k; break; } }
-    this.regimeDur = 0; this._pickDur(); this.anchor = this.price; this.swingPhase = this.rng() * Math.PI * 2;
-  }
-  next() {
-    this.regimeDur++;
-    if (this.regimeDur >= this.maxDur || this.rng() < this.switchPct) this._transition();
-    this.regimeCounts[this.regime]++;
-    var R = REGIMES[this.regime];
-    var vol = this.baseV * R.vM;
-    var drift = R.drift + this.bias;
-    var mr = R.mr > 0 ? R.mr * (this.anchor - this.price) / this.price : 0;
-    var swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2*Math.PI/R.sc)) * vol * 0.4 : 0;
-    var u1 = this.rng(), u2 = this.rng();
-    var z = Math.sqrt(-2*Math.log(u1+1e-10))*Math.cos(2*Math.PI*u2);
-    var ret = drift + mr + swing + vol * z;
-    var open = this.price;
-    var close = open * (1 + ret);
-    var wHi = Math.abs(vol * (0.3 + this.rng() * 0.7));
-    var wLo = Math.abs(vol * (0.3 + this.rng() * 0.7));
-    var high, low;
-    if (close >= open) { high = Math.max(open,close) * (1 + wHi); low = Math.min(open,close) * (1 - wLo * 0.5); }
-    else { high = Math.max(open,close) * (1 + wHi * 0.5); low = Math.min(open,close) * (1 - wLo); }
-    if (low <= 0) low = open * 0.001;
-    var volume = (5000 + this.rng() * 15000) * R.vM;
-    this.price = close;
-    var candle = { time: this.history.length, open, high, low, close, volume, regime: this.regime };
-    this.history.push(candle);
-    return candle;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 2: MarketEngine + TradingEngine + ExecutionEngine
-// ═══════════════════════════════════════════════════════════════
-
-class MarketEngine {
-  constructor(params) {
-    this.gen = new Gen(params.seed, params.startPrice, params.volatility, params.bias, params.switchPct);
-  }
-  tick() { return this.gen.next(); }
-  getHistory() { return this.gen.history; }
-  getRegimeCounts() { return this.gen.regimeCounts; }
-}
-
-class TradingEngine {
-  constructor(settings) {
-    this.mode = settings.mode || 'futures';
-    this.leverage = settings.leverage || 10;
-    this.makerFee = (settings.makerFee || 0.02) / 100;
-    this.takerFee = (settings.takerFee || 0.04) / 100;
-    this.slippage = (settings.slippage || 0.05) / 100;
-    this.maintRate = (settings.maintRate || 0.5) / 100;
-    this.balance = settings.balance || 10000;
-    this.equity = this.balance;
-    this.positions = [];
-    this.closedTrades = [];
-    this.totalFees = 0;
-    this.equityHistory = [];
-    this.posIdCounter = 0;
-    this.sizeMode = settings.sizeMode || 'fixed';
-    this.sizeVal = settings.sizeVal || 1000;
-    this.defaultSL = settings.sl || 0;
-    this.defaultTP = settings.tp || 0;
-    this.defaultTrail = settings.trail || 0;
-    this.partialFill = (settings.partialFill || 100) / 100;
-    this.ordersToProcess = [];
-    this.exposedBars = 0;
-    this.totalBars = 0;
-  }
-  getSize(price) {
-    if (this.sizeMode === 'percent') return (this.equity * (this.sizeVal / 100)) / price;
-    return this.sizeVal / price;
-  }
-  submitOrder(order) { this.ordersToProcess.push(order); }
-  processOrders(candle) {
-    var pending = this.ordersToProcess.splice(0);
-    for (var o of pending) {
-      if (o.close) { this._closePosition(o, candle); continue; }
-      var price = candle.close;
-      var side = o.side;
-      var slip = side === 'buy' ? (1 + this.slippage) : (1 - this.slippage);
-      var execPrice = price * slip;
-      var size = o.size || this.getSize(execPrice);
-      size *= this.partialFill;
-      if (size <= 0) continue;
-      var notional = size * execPrice;
-      var fee = notional * this.takerFee;
-      var margin = this.mode === 'futures' ? notional / this.leverage : notional;
-      if (margin + fee > this.balance) { margin = this.balance - fee; size = margin * (this.mode==='futures'?this.leverage:1) / execPrice; if(size<=0) continue; notional=size*execPrice; }
-      this.balance -= (margin + fee);
-      this.totalFees += fee;
-      var sl = o.stopLoss || this.defaultSL;
-      var tp = o.takeProfit || this.defaultTP;
-      var trail = o.trailingStop || this.defaultTrail;
-      var dir = side === 'buy' ? 'long' : 'short';
-      var pos = {
-        id: ++this.posIdCounter, direction: dir, side, entryPrice: execPrice, size, notional,
-        margin, fee, sl, tp, trail, trailHigh: execPrice, trailLow: execPrice,
-        entryBar: candle.time, unrealizedPnl: 0
-      };
-      this.positions.push(pos);
-    }
-  }
-  _closePosition(order, candle) {
-    var toClose = [];
-    if (order.positionId) {
-      toClose = this.positions.filter(p => p.id === order.positionId);
-    } else if (order.side === 'sell') {
-      toClose = this.positions.filter(p => p.direction === 'long');
-    } else if (order.side === 'buy') {
-      toClose = this.positions.filter(p => p.direction === 'short');
-    }
-    for (var p of toClose) this._exitPosition(p, candle.close, candle, 'signal');
-  }
-  _exitPosition(pos, exitPrice, candle, reason) {
-    var slip = pos.direction === 'long' ? (1 - this.slippage) : (1 + this.slippage);
-    var price = exitPrice * slip;
-    var fee = pos.size * price * this.takerFee;
-    this.totalFees += fee;
-    var pnl;
-    if (pos.direction === 'long') pnl = (price - pos.entryPrice) * pos.size;
-    else pnl = (pos.entryPrice - price) * pos.size;
-    pnl -= fee;
-    this.balance += pos.margin + pnl;
-    var trade = {
-      id: pos.id, direction: pos.direction, entryPrice: pos.entryPrice, exitPrice: price,
-      size: pos.size, pnl, fees: pos.fee + fee, entryBar: pos.entryBar,
-      exitBar: candle.time, reason, sl: pos.sl
-    };
-    this.closedTrades.push(trade);
-    var idx = this.positions.indexOf(pos);
-    if (idx >= 0) this.positions.splice(idx, 1);
-    return trade;
-  }
-  update(candle) {
-    this.totalBars++;
-    if (this.positions.length > 0) this.exposedBars++;
-    var liquidated = [];
-    for (var i = this.positions.length - 1; i >= 0; i--) {
-      var p = this.positions[i];
-      // Update trail
-      if (p.direction === 'long') { if (candle.high > p.trailHigh) p.trailHigh = candle.high; }
-      else { if (candle.low < p.trailLow || p.trailLow === p.entryPrice) p.trailLow = candle.low; }
-      // Check SL
-      if (p.sl > 0) {
-        if (p.direction === 'long' && candle.low <= p.entryPrice * (1 - p.sl/100)) {
-          this._exitPosition(p, p.entryPrice * (1 - p.sl/100), candle, 'stop_loss'); continue;
-        }
-        if (p.direction === 'short' && candle.high >= p.entryPrice * (1 + p.sl/100)) {
-          this._exitPosition(p, p.entryPrice * (1 + p.sl/100), candle, 'stop_loss'); continue;
-        }
-      }
-      // Check TP
-      if (p.tp > 0) {
-        if (p.direction === 'long' && candle.high >= p.entryPrice * (1 + p.tp/100)) {
-          this._exitPosition(p, p.entryPrice * (1 + p.tp/100), candle, 'take_profit'); continue;
-        }
-        if (p.direction === 'short' && candle.low <= p.entryPrice * (1 - p.tp/100)) {
-          this._exitPosition(p, p.entryPrice * (1 - p.tp/100), candle, 'take_profit'); continue;
-        }
-      }
-      // Check trailing stop
-      if (p.trail > 0) {
-        if (p.direction === 'long') {
-          var trailStop = p.trailHigh * (1 - p.trail/100);
-          if (candle.low <= trailStop) { this._exitPosition(p, trailStop, candle, 'trailing_stop'); continue; }
-        } else {
-          var trailStop = p.trailLow * (1 + p.trail/100);
-          if (candle.high >= trailStop) { this._exitPosition(p, trailStop, candle, 'trailing_stop'); continue; }
-        }
-      }
-      // Check liquidation (futures)
-      if (this.mode === 'futures') {
-        var liqPrice;
-        if (p.direction === 'long') liqPrice = p.entryPrice * (1 - (1/this.leverage) + this.maintRate);
-        else liqPrice = p.entryPrice * (1 + (1/this.leverage) - this.maintRate);
-        if ((p.direction === 'long' && candle.low <= liqPrice) || (p.direction === 'short' && candle.high >= liqPrice)) {
-          this.balance += 0; // margin lost
-          var t = { id:p.id, direction:p.direction, entryPrice:p.entryPrice, exitPrice:liqPrice, size:p.size,
-            pnl:-p.margin, fees:p.fee, entryBar:p.entryBar, exitBar:candle.time, reason:'liquidation', sl:p.sl };
-          this.closedTrades.push(t);
-          this.positions.splice(i, 1);
-          liquidated.push(t);
-          continue;
-        }
-      }
-      // Update unrealized PnL
-      if (p.direction === 'long') p.unrealizedPnl = (candle.close - p.entryPrice) * p.size;
-      else p.unrealizedPnl = (p.entryPrice - candle.close) * p.size;
-    }
-    var uPnl = this.positions.reduce((s,p)=>s+p.unrealizedPnl, 0);
-    this.equity = this.balance + uPnl + this.positions.reduce((s,p)=>s+p.margin,0);
-    this.equityHistory.push(this.equity);
-    return liquidated;
-  }
-  getState() {
-    return {
-      balance: this.balance, equity: this.equity, positions: this.positions,
-      closedTrades: this.closedTrades, totalFees: this.totalFees,
-      equityHistory: this.equityHistory
-    };
-  }
-}
-
-class ExecutionEngine {
-  constructor(tradingEngine) { this.te = tradingEngine; }
-  execute(orders, candle) {
-    if (!orders || !orders.length) return;
-    for (var o of orders) this.te.submitOrder(o);
-    this.te.processOrders(candle);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 3: StrategyEngine + PerformanceEngine
-// ═══════════════════════════════════════════════════════════════
-
-class StrategyEngine {
-  constructor() { this.strategy = null; this.error = null; this.indicators = {}; }
-  clearError() { this.error = null; var el=document.getElementById('stratError'); if(el) el.textContent=''; }
-  load(code) {
-    this.clearError();
-    try {
-      var forbidden = 'window,document,fetch,XMLHttpRequest,WebSocket,eval,Function,import,require,localStorage,sessionStorage,indexedDB,alert,confirm,prompt,setTimeout,setInterval'.split(',');
-      var prefix = forbidden.map(f=>'var '+f+'=undefined;').join('');
-      var wrapped = prefix + ';(' + code + '\n);';
-      // No — just run it in a function scope that returns an object
-      // Strategy code defines init, onCandle, etc. as top-level functions
-      // We need to extract them after running the code
-      var fn = new Function(prefix + '\n' + code + '\nreturn {init:typeof init==="function"?init:undefined,onCandle:typeof onCandle==="function"?onCandle:undefined,onOrderFilled:typeof onOrderFilled==="function"?onOrderFilled:undefined,onLiquidation:typeof onLiquidation==="function"?onLiquidation:undefined,onFinish:typeof onFinish==="function"?onFinish:undefined};');
-      this.strategy = fn();
-      if (!this.strategy.onCandle) throw new Error('onCandle() function required');
-    } catch(e) {
-      this.error = e.message;
-      this.strategy = null;
-      var el=document.getElementById('stratError'); if(el) el.textContent='Error: '+e.message;
-    }
-  }
-  run(ctx) {
-    if (!this.strategy || !this.strategy.onCandle) return [];
-    try {
-      ctx.indicators = this.indicators;
-      var orders = this.strategy.onCandle(ctx);
-      return orders || [];
-    } catch(e) {
-      this.error = e.message;
-      var el=document.getElementById('stratError'); if(el) el.textContent='Runtime: '+e.message;
-      return [];
-    }
-  }
-  init(ctx) {
-    this.indicators = {};
-    if (this.strategy && this.strategy.init) {
-      try { this.strategy.init(ctx); } catch(e) { this.error=e.message; }
-    }
-  }
-  finish(ctx) {
-    if (this.strategy && this.strategy.onFinish) {
-      try { this.strategy.onFinish(ctx); } catch(e) {}
-    }
-  }
-  onOrderFilled(ctx) {
-    if (this.strategy && this.strategy.onOrderFilled) {
-      try { this.strategy.onOrderFilled(ctx); } catch(e) {}
-    }
-  }
-  onLiquidation(ctx) {
-    if (this.strategy && this.strategy.onLiquidation) {
-      try { this.strategy.onLiquidation(ctx); } catch(e) {}
-    }
-  }
-}
-
-class PerformanceEngine {
-  constructor() {}
-  calculate(trades, equityHistory, initialBalance, totalFees, exposedBars, totalBars) {
-    var m = {};
-    m.totalTrades = trades.length;
-    if (m.totalTrades === 0) return this._empty(initialBalance, equityHistory, totalFees);
-    var wins = trades.filter(t => t.pnl > 0);
-    var losses = trades.filter(t => t.pnl <= 0);
-    m.wins = wins.length;
-    m.losses = losses.length;
-    m.winRate = m.wins / m.totalTrades;
-    var totalWin = wins.reduce((s,t) => s + t.pnl, 0);
-    var totalLoss = Math.abs(losses.reduce((s,t) => s + t.pnl, 0));
-    m.profitFactor = totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? 999 : 0;
-    m.avgWin = wins.length > 0 ? totalWin / wins.length : 0;
-    m.avgLoss = losses.length > 0 ? totalLoss / losses.length : 0;
-    m.expectancy = (m.winRate * m.avgWin) - ((1 - m.winRate) * m.avgLoss);
-    // Max consecutive losses
-    var maxCL = 0, cl = 0;
-    for (var t of trades) { if (t.pnl <= 0) { cl++; if(cl>maxCL) maxCL=cl; } else cl=0; }
-    m.maxConsecLoss = maxCL;
-    // Avg R multiple
-    var rMultiples = trades.filter(t=>t.sl>0).map(t => {
-      var risk = t.entryPrice * (t.sl/100) * t.size;
-      return risk > 0 ? t.pnl / risk : 0;
-    });
-    m.avgR = rMultiples.length > 0 ? rMultiples.reduce((s,r)=>s+r,0)/rMultiples.length : 0;
-    // Kelly
-    if (m.avgLoss > 0 && m.avgWin > 0) {
-      var bk = m.avgWin / m.avgLoss;
-      m.kelly = ((m.winRate * bk) - (1 - m.winRate)) / bk;
-    } else m.kelly = 0;
-    // Equity-based metrics
-    var finalEq = equityHistory.length > 0 ? equityHistory[equityHistory.length-1] : initialBalance;
-    m.totalReturn = (finalEq - initialBalance) / initialBalance;
-    // Max drawdown
-    var peak = 0, maxDD = 0;
-    for (var eq of equityHistory) { if(eq>peak) peak=eq; var dd=(peak-eq)/peak; if(dd>maxDD) maxDD=dd; }
-    m.maxDrawdown = maxDD;
-    // Sharpe (assuming per-bar returns)
-    if (equityHistory.length > 1) {
-      var rets = [];
-      for (var i = 1; i < equityHistory.length; i++) rets.push((equityHistory[i] - equityHistory[i-1]) / equityHistory[i-1]);
-      var mean = rets.reduce((s,r)=>s+r,0) / rets.length;
-      var variance = rets.reduce((s,r)=>s+(r-mean)*(r-mean),0) / rets.length;
-      var std = Math.sqrt(variance);
-      m.sharpe = std > 0 ? (mean / std) * Math.sqrt(252) : 0;
-    } else m.sharpe = 0;
-    // CAGR (approximate, assuming 252 candles = 1 year)
-    var years = totalBars / 252;
-    m.cagr = years > 0 ? Math.pow(finalEq / initialBalance, 1/years) - 1 : 0;
-    m.totalFees = totalFees;
-    m.balance = finalEq;
-    m.exposure = totalBars > 0 ? exposedBars / totalBars : 0;
-    // Composite score
-    m.compositeScore = m.sharpe !== 0 ? (m.cagr * Math.abs(m.sharpe)) / (1 + m.maxDrawdown) : 0;
-    return m;
-  }
-  _empty(initialBalance, equityHistory, totalFees) {
-    var finalEq = equityHistory.length > 0 ? equityHistory[equityHistory.length-1] : initialBalance;
-    return { totalTrades:0,wins:0,losses:0,winRate:0,profitFactor:0,avgWin:0,avgLoss:0,expectancy:0,
-      maxConsecLoss:0,avgR:0,kelly:0,totalReturn:(finalEq-initialBalance)/initialBalance,maxDrawdown:0,
-      sharpe:0,cagr:0,totalFees,balance:finalEq,exposure:0,compositeScore:0 };
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 4: MonteCarloEngine
-// ═══════════════════════════════════════════════════════════════
-
-class MonteCarloEngine {
-  run(config) {
-    var { numRuns, candlesPerRun, marketParams, strategyCode, strategyObject, tradingSettings } = config;
-    var results = [];
-    for (var run = 0; run < numRuns; run++) {
-      var mp = Object.assign({}, marketParams, { seed: marketParams.seed + run });
-      var me = new MarketEngine(mp);
-      var te = new TradingEngine(tradingSettings);
-      var ee = new ExecutionEngine(te);
-      var se = null;
-      if (strategyObject || strategyCode) {
-        se = new StrategyEngine();
-        if (strategyObject) { se.strategy = strategyObject; }
-        else { se.load(strategyCode); }
-      }
-      if (se && se.strategy) {
-        se.init({ equity: te.equity, balance: te.balance });
-      }
-      for (var i = 0; i < candlesPerRun; i++) {
-        var c = me.tick();
-        var liqs = te.update(c);
-        if (se && se.strategy) {
-          if (liqs.length > 0) se.onLiquidation({ candle:c, candles:me.getHistory(), positions:te.positions, equity:te.equity, balance:te.balance, fees:te.totalFees, utils:{Math} });
-          var ctx = { candle:c, candles:me.getHistory(), positions:te.positions.map(p=>({...p})), equity:te.equity, balance:te.balance, fees:te.totalFees, orders:[], utils:{Math}, indicators:{} };
-          var orders = se.run(ctx);
-          ee.execute(orders, c);
-        }
-      }
-      if (se) se.finish({ equity:te.equity, balance:te.balance });
-      var perf = new PerformanceEngine();
-      var metrics = perf.calculate(te.closedTrades, te.equityHistory, tradingSettings.balance, te.totalFees, te.exposedBars, te.totalBars);
-      metrics.equityCurve = te.equityHistory;
-      metrics.seed = mp.seed;
-      results.push(metrics);
-    }
-    return results;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 5: Chart Class with indicator overlays + candle % display
-// ═══════════════════════════════════════════════════════════════
-
-class Chart {
-  constructor(canvasId) {
-    this.canvas = document.getElementById(canvasId);
-    this.ctx = this.canvas.getContext('2d');
-    this.data = [];
-    this.markers = [];
-    this.offset = 0;
-    this.barWidth = 9;
-    this.minBarWidth = 3;
-    this.maxBarWidth = 30;
-    this.hoverIdx = -1;
-    this.isDragging = false;
-    this.dragStartX = 0;
-    this.dragStartOffset = 0;
-    this.indicatorOverlays = {}; // { name: { values:[], color:'#fff' } }
-    this._bindEvents();
-  }
-  _bindEvents() {
-    var self = this;
-    this.canvas.addEventListener('wheel', function(e) {
-      e.preventDefault();
-      if (e.ctrlKey) {
-        var oldBW = self.barWidth;
-        self.barWidth += e.deltaY < 0 ? 1 : -1;
-        self.barWidth = Math.max(self.minBarWidth, Math.min(self.maxBarWidth, self.barWidth));
-        if (self.barWidth !== oldBW) {
-          var visible = Math.floor(self.canvas.width / (self.barWidth + 1));
-          self.offset = Math.max(0, Math.min(self.data.length - visible, self.offset));
-        }
-      } else {
-        self.offset += e.deltaY > 0 ? 3 : -3;
-        var visible = Math.floor(self.canvas.width / (self.barWidth + 1));
-        self.offset = Math.max(0, Math.min(Math.max(0, self.data.length - visible), self.offset));
-      }
-      self.draw();
-    });
-    this.canvas.addEventListener('mousedown', function(e) {
-      self.isDragging = true; self.dragStartX = e.clientX; self.dragStartOffset = self.offset;
-    });
-    window.addEventListener('mousemove', function(e) {
-      if (self.isDragging) {
-        var dx = self.dragStartX - e.clientX;
-        var barStep = self.barWidth + 1;
-        self.offset = self.dragStartOffset + Math.round(dx / barStep);
-        var visible = Math.floor(self.canvas.width / barStep);
-        self.offset = Math.max(0, Math.min(Math.max(0, self.data.length - visible), self.offset));
-        self.draw();
-      } else {
-        var rect = self.canvas.getBoundingClientRect();
-        var mx = e.clientX - rect.left;
-        var barStep = self.barWidth + 1;
-        var idx = self.offset + Math.floor(mx / barStep);
-        if (idx >= 0 && idx < self.data.length) {
-          self.hoverIdx = idx;
-          self._showTooltip(self.data[idx], idx);
-        } else {
-          self.hoverIdx = -1;
-          document.getElementById('tooltip').style.display = 'none';
-        }
-      }
-    });
-    window.addEventListener('mouseup', function() { self.isDragging = false; });
-    this.canvas.addEventListener('mouseleave', function() {
-      self.hoverIdx = -1; document.getElementById('tooltip').style.display = 'none';
-    });
-  }
-  _showTooltip(c, idx) {
-    var tt = document.getElementById('tooltip');
-    tt.style.display = 'block';
-    document.getElementById('tta').textContent = 'Bar ' + c.time;
-    document.getElementById('tto').textContent = c.open.toFixed(2);
-    document.getElementById('tth').textContent = c.high.toFixed(2);
-    document.getElementById('ttl').textContent = c.low.toFixed(2);
-    document.getElementById('ttc').textContent = c.close.toFixed(2);
-    document.getElementById('ttv').textContent = Math.round(c.volume).toLocaleString();
-    document.getElementById('ttr').textContent = c.regime;
-    // Show Chg%
-    var chgEl = document.getElementById('ttchg');
-    if (idx > 0 && this.data[idx-1]) {
-      var prevClose = this.data[idx-1].close;
-      var chgPct = ((c.close - prevClose) / prevClose * 100).toFixed(2);
-      chgEl.textContent = (chgPct >= 0 ? '+' : '') + chgPct + '%';
-      chgEl.style.color = chgPct >= 0 ? 'var(--green)' : 'var(--red)';
-    } else {
-      chgEl.textContent = '—';
-      chgEl.style.color = '';
-    }
-  }
-  setData(data) { this.data = data; }
-  addMarker(idx, type, price) { this.markers.push({idx,type,price}); }
-  clearMarkers() { this.markers = []; }
-  setIndicatorOverlays(overlays) { this.indicatorOverlays = overlays || {}; }
-  autoScroll() {
-    var visible = Math.floor(this.canvas.width / (this.barWidth + 1));
-    if (this.data.length > visible) this.offset = this.data.length - visible;
-  }
-  resize() {
-    var rect = this.canvas.parentElement.getBoundingClientRect();
-    this.canvas.width = rect.width;
-    this.canvas.height = rect.height;
-  }
-  draw() {
-    var W = this.canvas.width, H = this.canvas.height;
-    var ctx = this.ctx;
-    ctx.clearRect(0, 0, W, H);
-    if (this.data.length === 0) return;
-    var barStep = this.barWidth + 1;
-    var visible = Math.floor(W / barStep);
-    var start = Math.max(0, this.offset);
-    var end = Math.min(this.data.length, start + visible);
-    if (end <= start) return;
-    // Find price range
-    var lo = Infinity, hi = -Infinity;
-    for (var i = start; i < end; i++) {
-      if (this.data[i].low < lo) lo = this.data[i].low;
-      if (this.data[i].high > hi) hi = this.data[i].high;
-    }
-    // Include indicator values in price range
-    for (var name in this.indicatorOverlays) {
-      var ov = this.indicatorOverlays[name];
-      for (var i = start; i < end; i++) {
-        if (ov.values[i] !== undefined && ov.values[i] !== null) {
-          if (ov.values[i] < lo) lo = ov.values[i];
-          if (ov.values[i] > hi) hi = ov.values[i];
-        }
-      }
-    }
-    var pad = (hi - lo) * 0.05;
-    lo -= pad; hi += pad;
-    if (hi === lo) { hi += 1; lo -= 1; }
-    var yScale = H / (hi - lo);
-    var toY = function(p) { return H - (p - lo) * yScale; };
-    // Grid lines
-    ctx.strokeStyle = 'rgba(28,40,48,0.6)';
-    ctx.lineWidth = 0.5;
-    var gridSteps = 6;
-    for (var g = 0; g <= gridSteps; g++) {
-      var gy = (g / gridSteps) * H;
-      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
-      var gp = hi - (g / gridSteps) * (hi - lo);
-      ctx.fillStyle = '#4a6070';
-      ctx.font = '9px "IBM Plex Mono"';
-      ctx.fillText(gp.toFixed(2), 4, gy - 2);
-    }
-    // Candles
-    for (var i = start; i < end; i++) {
-      var c = this.data[i];
-      var x = (i - start) * barStep;
-      var bull = c.close >= c.open;
-      var color = bull ? '#26de81' : '#fc5c65';
-      // Wick
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      var cx = x + this.barWidth / 2;
-      ctx.beginPath();
-      ctx.moveTo(cx, toY(c.high));
-      ctx.lineTo(cx, toY(c.low));
-      ctx.stroke();
-      // Body
-      var bodyTop = toY(Math.max(c.open, c.close));
-      var bodyBot = toY(Math.min(c.open, c.close));
-      var bodyH = Math.max(1, bodyBot - bodyTop);
-      ctx.fillStyle = color;
-      ctx.fillRect(x, bodyTop, this.barWidth, bodyH);
-    }
-    // Indicator overlays
-    for (var name in this.indicatorOverlays) {
-      var ov = this.indicatorOverlays[name];
-      ctx.strokeStyle = ov.color || '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash(ov.dash || []);
-      ctx.beginPath();
-      var started = false;
-      for (var i = start; i < end; i++) {
-        var v = ov.values[i];
-        if (v !== undefined && v !== null) {
-          var x = (i - start) * barStep + this.barWidth / 2;
-          var y = toY(v);
-          if (!started) { ctx.moveTo(x, y); started = true; }
-          else ctx.lineTo(x, y);
-        }
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    // Markers
-    for (var m of this.markers) {
-      if (m.idx < start || m.idx >= end) continue;
-      var x = (m.idx - start) * barStep + this.barWidth / 2;
-      var y = toY(m.price);
-      ctx.fillStyle = m.type === 'buy' || m.type === 'long' ? '#26de81' : '#fc5c65';
-      ctx.beginPath();
-      if (m.type === 'buy' || m.type === 'long') {
-        ctx.moveTo(x, y); ctx.lineTo(x-5, y+8); ctx.lineTo(x+5, y+8);
-      } else {
-        ctx.moveTo(x, y); ctx.lineTo(x-5, y-8); ctx.lineTo(x+5, y-8);
-      }
-      ctx.fill();
-    }
-    // Crosshair on hover
-    if (this.hoverIdx >= start && this.hoverIdx < end) {
-      var hx = (this.hoverIdx - start) * barStep + this.barWidth / 2;
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3,3]);
-      ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(hx, H); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 6: Equity Chart
-// ═══════════════════════════════════════════════════════════════
-
-class EquityChart {
-  constructor(canvasId) {
-    this.canvas = document.getElementById(canvasId);
-    this.ctx = this.canvas.getContext('2d');
-    this.data = [];
-    this.overlays = [];
-  }
-  resize() {
-    var rect = this.canvas.parentElement.getBoundingClientRect();
-    this.canvas.width = rect.width;
-    this.canvas.height = rect.height;
-  }
-  setData(d) { this.data = d; }
-  setOverlays(o) { this.overlays = o || []; }
-  draw() {
-    var W = this.canvas.width, H = this.canvas.height;
-    var ctx = this.ctx;
-    ctx.clearRect(0, 0, W, H);
-    var all = [this.data].concat(this.overlays);
-    var lo = Infinity, hi = -Infinity;
-    for (var arr of all) {
-      for (var v of arr) { if (v < lo) lo = v; if (v > hi) hi = v; }
-    }
-    if (lo === hi) { lo -= 100; hi += 100; }
-    var pad = (hi - lo) * 0.05; lo -= pad; hi += pad;
-    var toY = function(v) { return H - (v - lo) / (hi - lo) * H; };
-    // Overlays first (behind)
-    for (var ov of this.overlays) {
-      if (ov.length < 2) continue;
-      ctx.strokeStyle = 'rgba(100,150,200,0.15)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (var i = 0; i < ov.length; i++) {
-        var x = i / (ov.length - 1) * W;
-        if (i === 0) ctx.moveTo(x, toY(ov[i])); else ctx.lineTo(x, toY(ov[i]));
-      }
-      ctx.stroke();
-    }
-    // Main curve
-    if (this.data.length < 2) return;
-    var grad = ctx.createLinearGradient(0, 0, 0, H);
-    var isPos = this.data[this.data.length-1] >= this.data[0];
-    grad.addColorStop(0, isPos ? 'rgba(38,222,129,0.3)' : 'rgba(252,92,101,0.3)');
-    grad.addColorStop(1, 'rgba(6,8,10,0)');
-    ctx.beginPath();
-    for (var i = 0; i < this.data.length; i++) {
-      var x = i / (this.data.length - 1) * W;
-      if (i === 0) ctx.moveTo(x, toY(this.data[i])); else ctx.lineTo(x, toY(this.data[i]));
-    }
-    ctx.strokeStyle = isPos ? '#26de81' : '#fc5c65';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
-    ctx.fillStyle = grad; ctx.fill();
-    // Labels
-    ctx.fillStyle = '#4a6070'; ctx.font = '9px "IBM Plex Mono"';
-    ctx.fillText(hi.toFixed(0), 4, 12);
-    ctx.fillText(lo.toFixed(0), 4, H - 4);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 7: Bundled Strategy Codes
-// ═══════════════════════════════════════════════════════════════
-
-// ARM v2 strategy code is loaded from arm_strategy_v2.js via script tag
-// We also keep a reference for the dropdown:
-function getArmV2Strategy() {
-  return {
-    init: typeof window.init === 'function' ? window.init : undefined,
-    onCandle: typeof window.onCandle === 'function' ? window.onCandle : undefined,
-    onOrderFilled: typeof window.onOrderFilled === 'function' ? window.onOrderFilled : undefined,
-    onLiquidation: typeof window.onLiquidation === 'function' ? window.onLiquidation : undefined,
-    onFinish: typeof window.onFinish === 'function' ? window.onFinish : undefined
-  };
-}
-
-// ML-KNN Lorentzian Classification Strategy
-function getMlKnnStrategy(params) {
-  var p = params || {};
-  var K = p.k || 8;
-  var MAX_BARS = p.maxBars || 2000;
-  var FEATURE_COUNT = p.features || 5;
-  var USE_VOL_FILTER = p.volFilter !== undefined ? p.volFilter : true;
-  var USE_REG_FILTER = p.regFilter !== undefined ? p.regFilter : true;
-  var REG_THRESHOLD = p.regThresh !== undefined ? p.regThresh : -0.1;
-  var USE_ADX_FILTER = p.adxFilter || false;
-  var ADX_THRESHOLD = p.adxThresh || 20;
-  var USE_EMA_FILTER = p.emaFilter !== undefined ? p.emaFilter : true;
-  var EMA_PERIOD = p.emaPeriod || 200;
-  var USE_SMA_FILTER = p.smaFilter || false;
-  var SMA_PERIOD = p.smaPeriod || 200;
-  var USE_KERNEL = p.kernelFilter !== undefined ? p.kernelFilter : true;
-  var KERNEL_SMOOTH = p.kernelSmooth || false;
-  var KERN_H = p.kernH || 8;
-  var KERN_R = p.kernR || 8;
-  var KERN_LEVEL = p.kernLevel || 25;
-  var KERN_LAG = p.kernLag || 2;
-  var DEFAULT_EXITS = p.defExits !== undefined ? p.defExits : true;
-  var DYN_EXITS = p.dynExits || false;
-  var HOLD_BARS = p.holdBars || 4;
-  var F1_PERIOD = p.f1a || 14;
-  var F2_PERIOD = p.f2a || 10;
-  var F3_PERIOD = p.f3a || 20;
-  var F4_PERIOD = p.f4a || 20;
-  var F5_PERIOD = p.f5a || 9;
-
-  var S = {};
-
-  function lorentzian(x, y) { return Math.log(1 + Math.abs(x - y)); }
-
-  function calcRSI(cs, n, period) {
-    var gain = 0, loss = 0;
-    var start = n - period;
-    if (start < 1) start = 1;
-    for (var i = start; i < n; i++) {
-      var d = cs[i].close - cs[i-1].close;
-      if (d > 0) gain += d; else loss -= d;
-    }
-    gain /= period; loss /= period;
-    return loss === 0 ? 100 : 100 - 100 / (1 + gain / loss);
-  }
-
-  function calcCCI(cs, n, period) {
-    var sum = 0;
-    var start = n - period;
-    if (start < 0) start = 0;
-    var vals = [];
-    for (var i = start; i < n; i++) {
-      var tp = (cs[i].high + cs[i].low + cs[i].close) / 3;
-      vals.push(tp);
-      sum += tp;
-    }
-    var mean = sum / vals.length;
-    var mad = 0;
-    for (var i = 0; i < vals.length; i++) mad += Math.abs(vals[i] - mean);
-    mad /= vals.length;
-    var tp = (cs[n-1].high + cs[n-1].low + cs[n-1].close) / 3;
-    return mad > 0 ? (tp - mean) / (0.015 * mad) : 0;
-  }
-
-  function calcWaveTrend(cs, n, period) {
-    // Simplified WaveTrend: EMA of (close - EMA(hlc3))
-    var k = 2 / (period + 1);
-    var start = Math.max(0, n - period * 3);
-    var emaHlc = (cs[start].high + cs[start].low + cs[start].close) / 3;
-    for (var i = start + 1; i < n; i++) {
-      var hlc = (cs[i].high + cs[i].low + cs[i].close) / 3;
-      emaHlc = hlc * k + emaHlc * (1 - k);
-    }
-    // Now EMA of difference
-    var emaDiff = 0;
-    for (var i = start; i < n; i++) {
-      var hlc = (cs[i].high + cs[i].low + cs[i].close) / 3;
-      var diff = hlc - emaHlc;
-      emaDiff = diff * k + emaDiff * (1 - k);
-    }
-    return emaDiff;
-  }
-
-  function calcADX(cs, n, period) {
-    if (n < period + 1) return 25;
-    var trSum = 0, pDmSum = 0, mDmSum = 0;
-    for (var i = n - period; i < n; i++) {
-      var hi = cs[i].high, lo = cs[i].low, pc = cs[i-1].close;
-      var tr = Math.max(hi-lo, Math.abs(hi-pc), Math.abs(lo-pc));
-      var pDm = hi - cs[i-1].high; var mDm = cs[i-1].low - lo;
-      if (pDm < 0) pDm = 0; if (mDm < 0) mDm = 0;
-      if (pDm > mDm) mDm = 0; else pDm = 0;
-      trSum += tr; pDmSum += pDm; mDmSum += mDm;
-    }
-    if (trSum === 0) return 0;
-    var pDi = pDmSum / trSum * 100;
-    var mDi = mDmSum / trSum * 100;
-    var diSum = pDi + mDi;
-    return diSum > 0 ? Math.abs(pDi - mDi) / diSum * 100 : 0;
-  }
-
-  function calcEMA(cs, n, period) {
-    var k = 2 / (period + 1);
-    var start = Math.max(0, n - period * 4);
-    var val = cs[start].close;
-    for (var i = start + 1; i < n; i++) val = cs[i].close * k + val * (1 - k);
-    return val;
-  }
-
-  function calcSMA(cs, n, period) {
-    var start = Math.max(0, n - period);
-    var sum = 0;
-    for (var i = start; i < n; i++) sum += cs[i].close;
-    return sum / (n - start);
-  }
-
-  // Rational Quadratic Kernel Regression
-  function kernelRegression(cs, n, h, r, level) {
-    var sum = 0, wSum = 0;
-    var start = Math.max(0, n - level);
-    for (var i = start; i < n; i++) {
-      var dist = n - 1 - i;
-      var w = Math.pow(1 + (dist * dist) / (2 * r * h * h), -r);
-      sum += cs[i].close * w;
-      wSum += w;
-    }
-    return wSum > 0 ? sum / wSum : cs[n-1].close;
-  }
-
-  return {
-    init: function(ctx) {
-      S = {
-        peakEq: ctx.equity,
-        history: [], // feature vectors + labels
-        lastSignal: 0,
-        lastEntryBar: -999,
-        barCount: 0,
-        prevKernel: null,
-        prevPrevKernel: null,
-        signalDir: 0,
-        holdCount: 0
-      };
-    },
-    onCandle: function(ctx) {
-      var M = ctx.utils.Math;
-      var cs = ctx.candles;
-      var c = ctx.candle;
-      var n = cs.length;
-      var eq = ctx.equity;
-      var pos = ctx.positions;
-      var orders = [];
-
-      S.barCount++;
-
-      // Need enough data for indicators
-      var minBars = Math.max(EMA_PERIOD, SMA_PERIOD, F4_PERIOD + 2, 55);
-      if (n < minBars) return orders;
-
-      // ——— Compute Features ———
-      var f1 = calcRSI(cs, n, F1_PERIOD);
-      var f2 = calcWaveTrend(cs, n, F2_PERIOD);
-      var f3 = calcCCI(cs, n, F3_PERIOD);
-      var f4 = calcADX(cs, n, F4_PERIOD);
-      var f5 = calcRSI(cs, n, F5_PERIOD);
-
-      var features = [f1, f2, f3, f4, f5].slice(0, FEATURE_COUNT);
-
-      // ——— Compute label (future direction: +1 or -1 based on 4-bar return) ———
-      // For the history, we label PAST bars using the 4-bar forward return we now know
-      if (S.history.length > 0) {
-        var last = S.history[S.history.length - 1];
-        if (last.label === 0) {
-          // Label based on whether price went up or down since that bar
-          last.label = c.close > last.price ? 1 : -1;
-        }
-      }
-
-      // Push current features (label unknown yet, will be set next bar)
-      S.history.push({ features: features, label: 0, price: c.close });
-
-      // Trim history
-      if (S.history.length > MAX_BARS) S.history.shift();
-
-      // Need at least K+10 labeled samples
-      var labeled = S.history.filter(function(h) { return h.label !== 0; });
-      if (labeled.length < K + 10) return orders;
-
-      // ——— k-NN Classification with Lorentzian Distance ———
-      var distances = [];
-      for (var i = 0; i < labeled.length; i++) {
-        var dist = 0;
-        for (var j = 0; j < features.length; j++) {
-          dist += lorentzian(features[j], labeled[i].features[j]);
-        }
-        distances.push({ dist: dist, label: labeled[i].label });
-      }
-      distances.sort(function(a, b) { return a.dist - b.dist; });
-
-      var vote = 0;
-      for (var i = 0; i < K; i++) {
-        vote += distances[i].label;
-      }
-
-      var signal = vote > 0 ? 1 : vote < 0 ? -1 : 0;
-
-      // ——— Filters ———
-      var ema200 = calcEMA(cs, n, EMA_PERIOD);
-      var sma200 = calcSMA(cs, n, SMA_PERIOD);
-      var adx = calcADX(cs, n, 14);
-      var price = c.close;
-
-      // EMA filter
-      if (USE_EMA_FILTER) {
-        if (signal === 1 && price < ema200) signal = 0;
-        if (signal === -1 && price > ema200) signal = 0;
-      }
-
-      // SMA filter
-      if (USE_SMA_FILTER) {
-        if (signal === 1 && price < sma200) signal = 0;
-        if (signal === -1 && price > sma200) signal = 0;
-      }
-
-      // ADX filter
-      if (USE_ADX_FILTER && adx < ADX_THRESHOLD) signal = 0;
-
-      // Volatility filter (don't trade in extreme vol)
-      if (USE_VOL_FILTER) {
-        var rets = [];
-        var lookback = Math.min(20, n - 1);
-        for (var i = n - lookback; i < n; i++) {
-          rets.push((cs[i].close - cs[i-1].close) / cs[i-1].close);
-        }
-        var mean = rets.reduce(function(s,r){return s+r},0) / rets.length;
-        var vari = rets.reduce(function(s,r){return s+(r-mean)*(r-mean)},0) / rets.length;
-        var vol = M.sqrt(vari);
-        if (vol > 0.06) signal = 0;
-      }
-
-      // Regime filter (using trend detection)
-      if (USE_REG_FILTER) {
-        var ema8 = calcEMA(cs, n, 8);
-        var ema21 = calcEMA(cs, n, 21);
-        var regVal = (ema8 - ema21) / price * 100;
-        if (regVal < REG_THRESHOLD && signal === 1) signal = 0;
-        if (regVal > -REG_THRESHOLD && signal === -1) signal = 0;
-      }
-
-      // ——— Kernel Regression Filter ———
-      if (USE_KERNEL) {
-        var kernVal = kernelRegression(cs, n, KERN_H, KERN_R, KERN_LEVEL);
-        var prevKernVal = S.prevPrevKernel;
-        S.prevPrevKernel = S.prevKernel;
-        S.prevKernel = kernVal;
-
-        if (prevKernVal !== null) {
-          var kernelBullish = kernVal > prevKernVal;
-          if (signal === 1 && !kernelBullish) signal = 0;
-          if (signal === -1 && kernelBullish) signal = 0;
-        }
-
-        // Write kernel to indicators for chart
-        if (ctx.indicators) {
-          if (!ctx.indicators._kernelVals) ctx.indicators._kernelVals = [];
-          ctx.indicators._kernelVals[n-1] = kernVal;
-          ctx.indicators['Kernel'] = { values: ctx.indicators._kernelVals, color: '#a55eea' };
-        }
-      }
-
-      // Write EMA to indicators for chart
-      if (ctx.indicators) {
-        if (!ctx.indicators._ema200Vals) ctx.indicators._ema200Vals = [];
-        ctx.indicators._ema200Vals[n-1] = ema200;
-        ctx.indicators['EMA '+EMA_PERIOD] = { values: ctx.indicators._ema200Vals, color: '#fd9644' };
-      }
-
-      // ——— Hold bars / signal management ———
-      if (signal !== 0 && signal !== S.signalDir) {
-        S.signalDir = signal;
-        S.holdCount = 0;
-      }
-      S.holdCount++;
-
-      // ——— ATR for position sizing ———
-      var atrSum = 0;
-      for (var i = n - 14; i < n; i++) {
-        var hi = cs[i].high, lo = cs[i].low, pc = cs[i-1].close;
-        var tr = hi - lo;
-        if (M.abs(hi-pc) > tr) tr = M.abs(hi-pc);
-        if (M.abs(lo-pc) > tr) tr = M.abs(lo-pc);
-        atrSum += tr;
-      }
-      var atr = atrSum / 14;
-      var atrPct = atr / price;
-
-      // Drawdown throttle
-      if (eq > S.peakEq) S.peakEq = eq;
-      var dd = (S.peakEq - eq) / S.peakEq;
-      var ddT = dd > 0.20 ? 0.25 : dd > 0.15 ? 0.5 : dd > 0.10 ? 0.75 : 1.0;
-
-      // Emergency close
-      if (dd > 0.22 && pos.length > 0) {
-        for (var i = 0; i < pos.length; i++) {
-          orders.push({ close: true, side: pos[i].direction === 'long' ? 'sell' : 'buy' });
-        }
-        return orders;
-      }
-
-      // Position sizing
-      var riskAmt = eq * 0.012 * ddT;
-      var stopDist = atr * 2.0;
-      var rawSize = riskAmt / stopDist;
-      var maxSize = eq * 0.4 / price;
-      if (rawSize > maxSize) rawSize = maxSize;
-      if (rawSize <= 0 || rawSize !== rawSize) return orders;
-
-      var slPct = stopDist / price * 100;
-      var tpPct = slPct * 2.5;
-      var trailPct = slPct * 0.8;
-
-      var hasLong = false, hasShort = false;
-      for (var i = 0; i < pos.length; i++) {
-        if (pos[i].direction === 'long') hasLong = true;
-        if (pos[i].direction === 'short') hasShort = true;
-      }
-
-      var barsSince = n - S.lastEntryBar;
-
-      // ——— Dynamic exits ———
-      if (DYN_EXITS) {
-        if (hasLong && signal === -1) { orders.push({ close: true, side: 'sell' }); }
-        if (hasShort && signal === 1) { orders.push({ close: true, side: 'buy' }); }
-      }
-
-      // ——— Default exits: hold for HOLD_BARS then check signal flip ———
-      if (DEFAULT_EXITS && barsSince > HOLD_BARS) {
-        if (hasLong && signal === -1) { orders.push({ close: true, side: 'sell' }); }
-        if (hasShort && signal === 1) { orders.push({ close: true, side: 'buy' }); }
-      }
-
-      // ——— Entry ———
-      if (barsSince >= 3 && atrPct < 0.05) {
-        if (signal === 1 && !hasLong) {
-          orders.push({ side:'buy', type:'market', size:rawSize*0.6, stopLoss:slPct, takeProfit:tpPct, trailingStop:0 });
-          orders.push({ side:'buy', type:'market', size:rawSize*0.4, stopLoss:slPct, takeProfit:0, trailingStop:trailPct });
-          S.lastEntryBar = n;
-        }
-        if (signal === -1 && !hasShort) {
-          orders.push({ side:'sell', type:'market', size:rawSize*0.6, stopLoss:slPct, takeProfit:tpPct, trailingStop:0 });
-          orders.push({ side:'sell', type:'market', size:rawSize*0.4, stopLoss:slPct, takeProfit:0, trailingStop:trailPct });
-          S.lastEntryBar = n;
-        }
-      }
-
-      return orders;
-    },
-    onOrderFilled: function(ctx) {},
-    onLiquidation: function(ctx) {},
-    onFinish: function(ctx) {}
-  };
-}
-
-function getMlKnnParams() {
-  return {
-    k: +document.getElementById('mlK').value,
-    maxBars: +document.getElementById('mlMaxBars').value,
-    features: +document.getElementById('mlFeatures').value,
-    volFilter: document.getElementById('mlVolFilter').value === '1',
-    regFilter: document.getElementById('mlRegFilter').value === '1',
-    regThresh: +document.getElementById('mlRegThresh').value,
-    adxFilter: document.getElementById('mlAdxFilter').value === '1',
-    adxThresh: +document.getElementById('mlAdxThresh').value,
-    emaFilter: document.getElementById('mlEmaFilter').value === '1',
-    emaPeriod: +document.getElementById('mlEmaPeriod').value,
-    smaFilter: document.getElementById('mlSmaFilter').value === '1',
-    smaPeriod: +document.getElementById('mlSmaPeriod').value,
-    kernelFilter: document.getElementById('mlKernelFilter').value === '1',
-    kernelSmooth: document.getElementById('mlKernelSmooth').value === '1',
-    kernH: +document.getElementById('mlKernH').value,
-    kernR: +document.getElementById('mlKernR').value,
-    kernLevel: +document.getElementById('mlKernLevel').value,
-    kernLag: +document.getElementById('mlKernLag').value,
-    defExits: document.getElementById('mlDefExits').value === '1',
-    dynExits: document.getElementById('mlDynExits').value === '1',
-    holdBars: +document.getElementById('mlHoldBars').value,
-    f1a: +document.getElementById('mlF1a').value,
-    f2a: +document.getElementById('mlF2a').value,
-    f3a: +document.getElementById('mlF3a').value,
-    f4a: +document.getElementById('mlF4a').value,
-    f5a: +document.getElementById('mlF5a').value
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 8: Application State + UI Controls + Main Loop
-// ═══════════════════════════════════════════════════════════════
-
-var APP = {
-  market: null,
-  trading: null,
-  execution: null,
-  strategy: null,
-  performance: new PerformanceEngine(),
-  chart: null,
-  eqChart: null,
-  running: false,
-  paused: false,
-  timer: null,
-  speed: 800,
-  strategyEnabled: false,
-  selectedStrategy: 'custom'
-};
-
-// ——— Speed Control ———
-function setSpeed(ms) {
-  APP.speed = ms;
-  document.querySelectorAll('.speed-btn').forEach(function(b) {
-    b.classList.toggle('active', +b.dataset.ms === ms);
-  });
-  if (APP.running && !APP.paused) { clearInterval(APP.timer); APP.timer = setInterval(tick, ms); }
-}
-
-// ——— Trading Settings ———
-function getTradingSettings() {
-  return {
-    mode: document.getElementById('tMode').value,
-    leverage: +document.getElementById('tLev').value,
-    makerFee: +document.getElementById('tMakerFee').value,
-    takerFee: +document.getElementById('tTakerFee').value,
-    slippage: +document.getElementById('tSlippage').value,
-    maintRate: +document.getElementById('tMaintRate').value,
-    balance: +document.getElementById('tBalance').value,
-    sizeMode: document.getElementById('tSizeMode').value,
-    sizeVal: +document.getElementById('tSizeVal').value,
-    sl: +document.getElementById('tSL').value,
-    tp: +document.getElementById('tTP').value,
-    trail: +document.getElementById('tTrail').value,
-    partialFill: +document.getElementById('tPartialFill').value
-  };
-}
-
-function getMarketParams() {
-  return {
-    seed: +document.getElementById('rSd').value,
-    startPrice: +document.getElementById('rS').value,
-    volatility: +document.getElementById('rV').value,
-    bias: +document.getElementById('rB').value,
-    switchPct: +document.getElementById('rSw').value
-  };
-}
-
-function onTradingModeChange() {
-  var isFut = document.getElementById('tMode').value === 'futures';
-  document.getElementById('tLev').disabled = !isFut;
-  document.getElementById('tMaintRate').disabled = !isFut;
-}
-
-// ——— Strategy Toggle & Selection ———
-function onStrategyToggle() {
-  APP.strategyEnabled = document.getElementById('tStratEnabled').checked;
-  var manualBtns = document.getElementById('manualTradeBtns');
-  var blockedMsg = document.getElementById('tradeBlockedMsg');
-  if (APP.strategyEnabled) {
-    manualBtns.style.display = 'none';
-    blockedMsg.classList.add('show');
-  } else {
-    manualBtns.style.display = '';
-    blockedMsg.classList.remove('show');
-  }
-}
-
-function onStrategySelect() {
-  var val = document.getElementById('tStratSelect').value;
-  APP.selectedStrategy = val;
-  var mlSettings = document.getElementById('mlKnnSettings');
-  var codeArea = document.getElementById('tStratCode');
-  if (val === 'ml_knn') {
-    mlSettings.style.display = 'block';
-    codeArea.value = '// ML-KNN Lorentzian Classification\n// Configure parameters above, then click Load Strategy';
-    codeArea.disabled = true;
-  } else if (val === 'arm_v2') {
-    mlSettings.style.display = 'none';
-    codeArea.value = '// ARM v2.0 — Adaptive Regime Momentum\n// This strategy is loaded from arm_strategy_v2.js';
-    codeArea.disabled = true;
-  } else {
-    mlSettings.style.display = 'none';
-    codeArea.value = '';
-    codeArea.disabled = false;
-  }
-}
-
-function loadStrategy() {
-  if (!APP.strategy) APP.strategy = new StrategyEngine();
-  APP.strategy.clearError();
-
-  if (APP.selectedStrategy === 'arm_v2') {
-    APP.strategy.strategy = getArmV2Strategy();
-    if (!APP.strategy.strategy.onCandle) {
-      var el = document.getElementById('stratError');
-      if (el) el.textContent = 'Error: arm_strategy_v2.js not loaded. Check the file exists.';
-      return;
-    }
-  } else if (APP.selectedStrategy === 'ml_knn') {
-    APP.strategy.strategy = getMlKnnStrategy(getMlKnnParams());
-  } else {
-    var code = document.getElementById('tStratCode').value;
-    if (!code.trim()) return;
-    APP.strategy.load(code);
-  }
-
-  if (APP.strategy.strategy) {
-    document.getElementById('stratError').textContent = '';
-    document.getElementById('stratError').style.color = 'var(--green)';
-    document.getElementById('stratError').textContent = 'Strategy loaded OK';
-    setTimeout(function() { document.getElementById('stratError').textContent = ''; }, 2000);
-  }
-}
-
-function uploadStrategy(event) {
-  var file = event.target.files[0];
-  if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    document.getElementById('tStratCode').value = e.target.result;
-    document.getElementById('tStratSelect').value = 'custom';
-    onStrategySelect();
-  };
-  reader.readAsText(file);
-}
-
-// ——— Manual Trading ———
-function manualBuy() {
-  if (APP.strategyEnabled || !APP.running) return;
-  var c = APP.market.gen.history;
-  if (c.length === 0) return;
-  var candle = c[c.length - 1];
-  APP.execution.execute([{ side:'buy', type:'market' }], candle);
-  updateUI();
-}
-function manualSell() {
-  if (APP.strategyEnabled || !APP.running) return;
-  var c = APP.market.gen.history;
-  if (c.length === 0) return;
-  var candle = c[c.length - 1];
-  APP.execution.execute([{ side:'sell', type:'market' }], candle);
-  updateUI();
-}
-
-// ——— Start/Pause/Stop ———
-function startLive() {
-  if (APP.running && APP.paused) {
-    APP.paused = false;
-    APP.timer = setInterval(tick, APP.speed);
-    document.getElementById('btnPause').disabled = false;
-    document.getElementById('btnStart').disabled = true;
-    document.getElementById('dot').classList.add('pulse');
-    document.getElementById('liveBadge').classList.add('pulse');
-    return;
-  }
-  // Fresh start
-  var mp = getMarketParams();
-  var ts = getTradingSettings();
-  APP.market = new MarketEngine(mp);
-  APP.trading = new TradingEngine(ts);
-  APP.execution = new ExecutionEngine(APP.trading);
-  APP.strategy = new StrategyEngine();
-
-  // Load strategy if enabled
-  if (APP.strategyEnabled) {
-    loadStrategy();
-    if (APP.strategy.strategy) {
-      APP.strategy.init({ equity: APP.trading.equity, balance: APP.trading.balance });
-    }
-  }
-
-  APP.chart = new Chart('cc');
-  APP.chart.resize();
-  APP.eqChart = new EquityChart('eqc');
-  APP.eqChart.resize();
-
-  APP.running = true;
-  APP.paused = false;
-
-  document.getElementById('btnStart').disabled = true;
-  document.getElementById('btnPause').disabled = false;
-  document.getElementById('btnStop').disabled = false;
-  document.getElementById('dot').classList.add('pulse');
-  document.getElementById('liveBadge').classList.add('pulse');
-  document.getElementById('eqArea').style.display = APP.strategyEnabled ? 'block' : 'none';
-
-  APP.timer = setInterval(tick, APP.speed);
-}
-
-function pauseLive() {
-  if (!APP.running) return;
-  APP.paused = true;
-  clearInterval(APP.timer);
-  document.getElementById('btnPause').disabled = true;
-  document.getElementById('btnStart').disabled = false;
-  document.getElementById('dot').classList.remove('pulse');
-  document.getElementById('liveBadge').classList.remove('pulse');
-}
-
-function stopLive() {
-  if (!APP.running) return;
-  APP.running = false;
-  APP.paused = false;
-  clearInterval(APP.timer);
-  document.getElementById('btnStart').disabled = false;
-  document.getElementById('btnPause').disabled = true;
-  document.getElementById('btnStop').disabled = true;
-  document.getElementById('dot').classList.remove('pulse');
-  document.getElementById('liveBadge').classList.remove('pulse');
-  document.getElementById('btnExport').disabled = false;
-  document.getElementById('btnExportTrades').disabled = false;
-  if (APP.strategy) APP.strategy.finish({ equity: APP.trading.equity, balance: APP.trading.balance });
-}
-
-function resetAll() {
-  stopLive();
-  APP.market = null; APP.trading = null; APP.chart = null;
-  document.getElementById('liveCount').textContent = '0';
-  document.getElementById('tkP').textContent = '—';
-  document.getElementById('tkC').textContent = '—';
-  document.getElementById('tkH').textContent = '—';
-  document.getElementById('tkL').textContent = '—';
-  document.getElementById('tkV').textContent = '—';
-  document.getElementById('tkR').textContent = '—';
-  document.getElementById('tkEq').textContent = '—';
-  document.getElementById('stS').textContent = '—';
-  document.getElementById('stN').textContent = '—';
-  document.getElementById('stH').textContent = '—';
-  document.getElementById('stL').textContent = '—';
-  document.getElementById('stDD').textContent = '—';
-  document.getElementById('stRt').textContent = '—';
-  document.getElementById('tlBar').innerHTML = '';
-  document.getElementById('indLegend').innerHTML = '';
-  ['pmBal','pmEq','pmUPnl','pmRPnl','pmWR','pmPF','pmSh','pmDD','pmExp','pmKe','pmAvgR','pmMCL','pmExpo','pmFees']
-    .forEach(function(id) { document.getElementById(id).textContent = '—'; });
-  document.getElementById('posList').innerHTML = '';
-  document.getElementById('posCount').textContent = '(0)';
-  document.getElementById('tradeLog').innerHTML = '';
-  document.getElementById('tradeCount').textContent = '(0)';
-  document.getElementById('btnExport').disabled = true;
-  document.getElementById('btnExportTrades').disabled = true;
-  document.getElementById('eqArea').style.display = 'none';
-  document.getElementById('mcResults').innerHTML = '';
-  // Clear canvases
-  var cc = document.getElementById('cc');
-  cc.getContext('2d').clearRect(0, 0, cc.width, cc.height);
-  var eqc = document.getElementById('eqc');
-  eqc.getContext('2d').clearRect(0, 0, eqc.width, eqc.height);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 9: Main Tick + UI Update + Performance Display
-// ═══════════════════════════════════════════════════════════════
-
-function tick() {
-  if (!APP.running || APP.paused || !APP.market) return;
-  var c = APP.market.tick();
-  var liqs = APP.trading.update(c);
-  var history = APP.market.getHistory();
-
-  // Run strategy
-  if (APP.strategyEnabled && APP.strategy && APP.strategy.strategy) {
-    if (liqs.length > 0) {
-      APP.strategy.onLiquidation({ candle:c, candles:history, positions:APP.trading.positions, equity:APP.trading.equity, balance:APP.trading.balance, fees:APP.trading.totalFees, utils:{Math} });
-    }
-    var ctx = {
-      candle: c,
-      candles: history,
-      positions: APP.trading.positions.map(function(p){ return Object.assign({},p); }),
-      equity: APP.trading.equity,
-      balance: APP.trading.balance,
-      fees: APP.trading.totalFees,
-      orders: [],
-      utils: { Math: Math },
-      indicators: APP.strategy.indicators
-    };
-    var orders = APP.strategy.run(ctx);
-    if (orders && orders.length > 0) {
-      APP.execution.execute(orders, c);
-      // Add markers
-      for (var o of orders) {
-        if (!o.close) {
-          APP.chart.addMarker(c.time, o.side === 'buy' ? 'buy' : 'sell', c.close);
-        }
-      }
-    }
-
-    // Update indicator overlays on chart
-    if (APP.strategy.indicators) {
-      var overlays = {};
-      for (var name in APP.strategy.indicators) {
-        if (name.charAt(0) === '_') continue; // skip internal arrays
-        var ind = APP.strategy.indicators[name];
-        if (ind && ind.values) {
-          overlays[name] = ind;
-        }
-      }
-      APP.chart.setIndicatorOverlays(overlays);
-
-      // Update indicator legend
-      var legend = document.getElementById('indLegend');
-      var badges = '';
-      for (var name in overlays) {
-        badges += '<span class="ind-badge" style="border-color:'+overlays[name].color+';color:'+overlays[name].color+'">'+name+'</span>';
-      }
-      legend.innerHTML = badges;
-    }
-  }
-
-  // For closed trades from this tick, add exit markers
-  var trades = APP.trading.closedTrades;
-  while (APP._lastTradeIdx === undefined) APP._lastTradeIdx = 0;
-  for (var i = APP._lastTradeIdx; i < trades.length; i++) {
-    var t = trades[i];
-    APP.chart.addMarker(t.exitBar, t.direction === 'long' ? 'sell' : 'buy', t.exitPrice);
-  }
-  APP._lastTradeIdx = trades.length;
-
-  updateUI();
-}
-
-function updateUI() {
-  if (!APP.market || !APP.trading) return;
-  var history = APP.market.getHistory();
-  var n = history.length;
-  if (n === 0) return;
-  var c = history[n - 1];
-
-  // Topbar
-  document.getElementById('tkP').textContent = c.close.toFixed(2);
-  var chg = n > 1 ? ((c.close - history[0].close) / history[0].close * 100).toFixed(2) : '0.00';
-  var chgEl = document.getElementById('tkC');
-  chgEl.textContent = (chg >= 0 ? '+' : '') + chg + '%';
-  chgEl.className = 'tick-val ' + (chg >= 0 ? 'up' : 'down');
-
-  var allHigh = -Infinity, allLow = Infinity;
-  for (var i = 0; i < n; i++) { if(history[i].high > allHigh) allHigh = history[i].high; if(history[i].low < allLow) allLow = history[i].low; }
-  document.getElementById('tkH').textContent = allHigh.toFixed(2);
-  document.getElementById('tkL').textContent = allLow.toFixed(2);
-  document.getElementById('tkV').textContent = Math.round(c.volume).toLocaleString();
-  document.getElementById('tkR').textContent = c.regime;
-  document.getElementById('tkEq').textContent = APP.trading.equity.toFixed(0);
-
-  // Live counter
-  document.getElementById('liveCount').textContent = n;
-
-  // Stats
-  document.getElementById('stS').textContent = history[0].open.toFixed(2);
-  document.getElementById('stN').textContent = c.close.toFixed(2);
-  document.getElementById('stH').textContent = allHigh.toFixed(2);
-  document.getElementById('stL').textContent = allLow.toFixed(2);
-
-  // Max DD
-  var peak = 0, maxDD = 0;
-  for (var eq of APP.trading.equityHistory) { if(eq>peak) peak=eq; var dd=(peak-eq)/peak; if(dd>maxDD)maxDD=dd; }
-  document.getElementById('stDD').textContent = (maxDD * 100).toFixed(1) + '%';
-
-  var ret = ((c.close - history[0].open) / history[0].open * 100).toFixed(2);
-  var retEl = document.getElementById('stRt');
-  retEl.textContent = (ret >= 0 ? '+' : '') + ret + '%';
-  retEl.className = 'stat-value ' + (ret >= 0 ? 'up' : 'down');
-
-  // Regime percentages
-  var rc = APP.market.getRegimeCounts();
-  var total = Object.values(rc).reduce(function(s,v){return s+v},0);
-  REGIME_NAMES.forEach(function(r) {
-    var pct = total > 0 ? (rc[r] / total * 100).toFixed(0) : 0;
-    document.getElementById('pct-' + r).textContent = pct + '%';
-  });
-
-  // Active regime highlight
-  REGIME_NAMES.forEach(function(r) {
-    var el = document.getElementById('ri-' + r);
-    el.style.borderLeft = c.regime === r ? '2px solid ' + REGIMES[r].color : '2px solid transparent';
-  });
-
-  // Timeline bar
-  if (n % 3 === 0 || n < 10) {
-    var tlBar = document.getElementById('tlBar');
-    var html = '';
-    var segStart = 0;
-    for (var i = 1; i <= n; i++) {
-      if (i === n || history[i].regime !== history[segStart].regime) {
-        var w = (i - segStart) / n * 100;
-        html += '<div style="width:'+w+'%;height:100%;background:'+REGIMES[history[segStart].regime].color+'" title="'+history[segStart].regime+' ('+Math.round(w)+'%)"></div>';
-        segStart = i;
-      }
-    }
-    tlBar.innerHTML = html;
-  }
-
-  // Chart
-  APP.chart.setData(history);
-  APP.chart.autoScroll();
-  APP.chart.draw();
-
-  // New candle flash
-  var ncf = document.getElementById('ncf');
-  ncf.style.opacity = '0.5';
-  ncf.style.background = c.close >= c.open ? 'rgba(38,222,129,0.1)' : 'rgba(252,92,101,0.1)';
-  setTimeout(function() { ncf.style.opacity = '0'; }, 120);
-
-  // Equity chart
-  if (APP.strategyEnabled && APP.trading.equityHistory.length > 1) {
-    document.getElementById('eqArea').style.display = 'block';
-    APP.eqChart.setData(APP.trading.equityHistory);
-    APP.eqChart.resize();
-    APP.eqChart.draw();
-  }
-
-  // Performance metrics
-  var metrics = APP.performance.calculate(
-    APP.trading.closedTrades, APP.trading.equityHistory,
-    getTradingSettings().balance, APP.trading.totalFees,
-    APP.trading.exposedBars, APP.trading.totalBars
-  );
-  var uPnl = APP.trading.positions.reduce(function(s,p){return s+p.unrealizedPnl},0);
-
-  document.getElementById('pmBal').textContent = APP.trading.balance.toFixed(2);
-  document.getElementById('pmEq').textContent = APP.trading.equity.toFixed(2);
-
-  var upEl = document.getElementById('pmUPnl');
-  upEl.textContent = uPnl.toFixed(2);
-  upEl.className = 'stat-value sm ' + (uPnl >= 0 ? 'up' : 'down');
-
-  var rpEl = document.getElementById('pmRPnl');
-  var rPnl = APP.trading.closedTrades.reduce(function(s,t){return s+t.pnl},0);
-  rpEl.textContent = rPnl.toFixed(2);
-  rpEl.className = 'stat-value sm ' + (rPnl >= 0 ? 'up' : 'down');
-
-  document.getElementById('pmWR').textContent = (metrics.winRate * 100).toFixed(1) + '%';
-  document.getElementById('pmPF').textContent = metrics.profitFactor.toFixed(2);
-  document.getElementById('pmSh').textContent = metrics.sharpe.toFixed(2);
-  document.getElementById('pmDD').textContent = (metrics.maxDrawdown * 100).toFixed(1) + '%';
-  document.getElementById('pmExp').textContent = metrics.expectancy.toFixed(2);
-  document.getElementById('pmKe').textContent = (metrics.kelly * 100).toFixed(1) + '%';
-  document.getElementById('pmAvgR').textContent = metrics.avgR.toFixed(2);
-  document.getElementById('pmMCL').textContent = metrics.maxConsecLoss;
-  document.getElementById('pmExpo').textContent = (metrics.exposure * 100).toFixed(1) + '%';
-  document.getElementById('pmFees').textContent = metrics.totalFees.toFixed(2);
-
-  // Positions list
-  var posList = document.getElementById('posList');
-  var posHtml = '';
-  for (var p of APP.trading.positions) {
-    var pnlPct = ((p.unrealizedPnl / p.margin) * 100).toFixed(1);
-    var pnlClass = p.unrealizedPnl >= 0 ? 'up' : 'down';
-    posHtml += '<div class="pos-item"><div class="pos-head"><span style="color:'+(p.direction==='long'?'var(--green)':'var(--red)')+'">'+p.direction.toUpperCase()+' #'+p.id+'</span>'
-      +'<button class="pos-close-btn" onclick="closePosition('+p.id+')">Close</button></div>'
-      +'<div class="pos-detail"><span>Entry: '+p.entryPrice.toFixed(2)+'</span><span>Size: '+p.size.toFixed(4)+'</span>'
-      +'<span class="'+pnlClass+'">PnL: '+p.unrealizedPnl.toFixed(2)+' ('+pnlPct+'%)</span></div></div>';
-  }
-  posList.innerHTML = posHtml;
-  document.getElementById('posCount').textContent = '(' + APP.trading.positions.length + ')';
-
-  // Trade log (last 20)
-  var trades = APP.trading.closedTrades;
-  var logHtml = '';
-  var start = Math.max(0, trades.length - 20);
-  for (var i = trades.length - 1; i >= start; i--) {
-    var t = trades[i];
-    var pClass = t.pnl >= 0 ? 'up' : 'down';
-    logHtml += '<div style="font-size:9px;padding:2px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">'
-      +'<span style="color:'+(t.direction==='long'?'var(--green)':'var(--red)')+'">'+t.direction.toUpperCase()+' #'+t.id+'</span>'
-      +'<span>'+t.entryPrice.toFixed(2)+' → '+t.exitPrice.toFixed(2)+'</span>'
-      +'<span class="'+pClass+'">'+t.pnl.toFixed(2)+'</span>'
-      +'<span style="color:var(--muted)">'+t.reason+'</span></div>';
-  }
-  document.getElementById('tradeLog').innerHTML = logHtml;
-  document.getElementById('tradeCount').textContent = '(' + trades.length + ')';
-}
-
-function closePosition(id) {
-  if (!APP.trading) return;
-  var pos = APP.trading.positions.find(function(p){return p.id===id});
-  if (!pos) return;
-  var c = APP.market.getHistory();
-  var candle = c[c.length-1];
-  APP.execution.execute([{ close:true, positionId:id, side: pos.direction==='long'?'sell':'buy' }], candle);
-  updateUI();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PART 10: Monte Carlo UI + Export + Modal + Init
-// ═══════════════════════════════════════════════════════════════
-
-function runMonteCarlo() {
-  var btn = document.getElementById('btnMC');
-  btn.disabled = true;
-  btn.textContent = '⏳ Running...';
-
-  setTimeout(function() {
-    var mc = new MonteCarloEngine();
-    var ts = getTradingSettings();
-    var mp = getMarketParams();
-
-    var stratCode = null;
-    var stratObj = null;
-
-    if (APP.strategyEnabled) {
-      if (APP.selectedStrategy === 'arm_v2') {
-        stratObj = getArmV2Strategy();
-      } else if (APP.selectedStrategy === 'ml_knn') {
-        stratObj = getMlKnnStrategy(getMlKnnParams());
-      } else {
-        stratCode = document.getElementById('tStratCode').value;
-      }
-    }
-
-    var results = mc.run({
-      numRuns: +document.getElementById('mcRuns').value,
-      candlesPerRun: +document.getElementById('mcCandles').value,
-      marketParams: mp,
-      tradingSettings: ts,
-      strategyCode: stratCode,
-      strategyObject: stratObj
-    });
-
-    // Display results
-    var div = document.getElementById('mcResults');
-    if (results.length === 0) { div.innerHTML = '<span style="color:var(--muted)">No results</span>'; btn.disabled=false; btn.textContent='▶ RUN MONTE CARLO'; return; }
-
-    // Aggregate stats
-    var returns = results.map(function(r){return r.totalReturn*100});
-    var sharpes = results.map(function(r){return r.sharpe});
-    var dds = results.map(function(r){return r.maxDrawdown*100});
-    var scores = results.map(function(r){return r.compositeScore});
-    var wrs = results.map(function(r){return r.winRate*100});
-
-    function avg(arr) { return arr.reduce(function(s,v){return s+v},0)/arr.length; }
-    function med(arr) { var s=arr.slice().sort(function(a,b){return a-b}); return s[Math.floor(s.length/2)]; }
-    function mn(arr) { return Math.min.apply(null,arr); }
-    function mx(arr) { return Math.max.apply(null,arr); }
-
-    var html = '<table class="mc-table"><thead><tr><th>Metric</th><th>Mean</th><th>Median</th><th>Min</th><th>Max</th></tr></thead><tbody>';
-    html += '<tr><td>Return %</td><td>'+avg(returns).toFixed(1)+'</td><td>'+med(returns).toFixed(1)+'</td><td>'+mn(returns).toFixed(1)+'</td><td>'+mx(returns).toFixed(1)+'</td></tr>';
-    html += '<tr><td>Sharpe</td><td>'+avg(sharpes).toFixed(2)+'</td><td>'+med(sharpes).toFixed(2)+'</td><td>'+mn(sharpes).toFixed(2)+'</td><td>'+mx(sharpes).toFixed(2)+'</td></tr>';
-    html += '<tr><td>Max DD %</td><td>'+avg(dds).toFixed(1)+'</td><td>'+med(dds).toFixed(1)+'</td><td>'+mn(dds).toFixed(1)+'</td><td>'+mx(dds).toFixed(1)+'</td></tr>';
-    html += '<tr><td>Win Rate %</td><td>'+avg(wrs).toFixed(1)+'</td><td>'+med(wrs).toFixed(1)+'</td><td>'+mn(wrs).toFixed(1)+'</td><td>'+mx(wrs).toFixed(1)+'</td></tr>';
-    html += '<tr><td>Score</td><td>'+avg(scores).toFixed(4)+'</td><td>'+med(scores).toFixed(4)+'</td><td>'+mn(scores).toFixed(4)+'</td><td>'+mx(scores).toFixed(4)+'</td></tr>';
-    html += '</tbody></table>';
-
-    // Positive rate
-    var posCount = scores.filter(function(s){return s>0}).length;
-    html += '<div style="margin-top:6px;font-size:10px;color:var(--muted)">Positive score: <span style="color:var(--green)">'+posCount+'/'+results.length+' ('+Math.round(posCount/results.length*100)+'%)</span></div>';
-
-    div.innerHTML = html;
-
-    // Overlay equity curves if checked
-    if (document.getElementById('mcOverlay').checked && APP.eqChart) {
-      document.getElementById('eqArea').style.display = 'block';
-      APP.eqChart.resize();
-      var overlays = results.map(function(r){return r.equityCurve});
-      var mainIdx = 0;
-      var maxRet = -Infinity;
-      for (var i = 0; i < results.length; i++) { if(results[i].totalReturn > maxRet) { maxRet = results[i].totalReturn; mainIdx = i; } }
-      APP.eqChart.setData(overlays[mainIdx] || []);
-      APP.eqChart.setOverlays(overlays);
-      APP.eqChart.draw();
-    }
-
-    btn.disabled = false;
-    btn.textContent = '▶ RUN MONTE CARLO';
-  }, 50);
-}
-
-// ——— Export ———
-var exportFmt = 'xlsx';
-function selFmt(fmt) {
-  exportFmt = fmt;
-  document.getElementById('optXlsx').classList.toggle('sel', fmt==='xlsx');
-  document.getElementById('optJson').classList.toggle('sel', fmt==='json');
-}
-
-function openModal() {
-  var n = APP.market ? APP.market.getHistory().length : 0;
-  document.getElementById('modalSub').textContent = n + ' kynttilää tallennettu.';
-  document.getElementById('modal').classList.add('show');
-}
-function closeModal() { document.getElementById('modal').classList.remove('show'); }
-
-function doExport() {
-  if (!APP.market) return;
-  var data = APP.market.getHistory();
-  if (exportFmt === 'json') {
-    var blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'market_data.json'; a.click();
-  } else {
-    if (typeof XLSX === 'undefined') {
-      alert('XLSX library not loaded');
-      return;
-    }
-    var wb = XLSX.utils.book_new();
-    var wsData = data.map(function(c) {
-      return { Bar:c.time, Open:c.open, High:c.high, Low:c.low, Close:c.close, Volume:Math.round(c.volume), Regime:c.regime };
-    });
-    var ws = XLSX.utils.json_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, 'OHLCV');
-    // Regime stats sheet
-    var rc = APP.market.getRegimeCounts();
-    var total = Object.values(rc).reduce(function(s,v){return s+v},0);
-    var rsData = REGIME_NAMES.map(function(r){ return { Regime:r, Count:rc[r], Pct:total>0?(rc[r]/total*100).toFixed(1)+'%':'0%' }; });
-    var ws2 = XLSX.utils.json_to_sheet(rsData);
-    XLSX.utils.book_append_sheet(wb, ws2, 'Regimes');
-    XLSX.writeFile(wb, 'market_data.xlsx');
-  }
-  closeModal();
-}
-
-function exportTradeCSV() {
-  if (!APP.trading || APP.trading.closedTrades.length === 0) return;
-  var lines = ['ID,Direction,Entry,Exit,Size,PnL,Fees,EntryBar,ExitBar,Reason'];
-  for (var t of APP.trading.closedTrades) {
-    lines.push([t.id,t.direction,t.entryPrice.toFixed(4),t.exitPrice.toFixed(4),t.size.toFixed(6),t.pnl.toFixed(2),t.fees.toFixed(4),t.entryBar,t.exitBar,t.reason].join(','));
-  }
-  var blob = new Blob([lines.join('\n')], {type:'text/csv'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'trades.csv'; a.click();
-}
-
-// ——— Window resize ———
-window.addEventListener('resize', function() {
-  if (APP.chart) { APP.chart.resize(); APP.chart.draw(); }
-  if (APP.eqChart) { APP.eqChart.resize(); APP.eqChart.draw(); }
-});
-
-// ——— Init ———
-document.addEventListener('DOMContentLoaded', function() {
-  onTradingModeChange();
-  onStrategyToggle();
-  onStrategySelect();
-  // Pre-select ARM v2 if loaded
-  if (typeof window.onCandle === 'function') {
-    document.getElementById('tStratSelect').value = 'arm_v2';
-    onStrategySelect();
-  }
-});
-
-</script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

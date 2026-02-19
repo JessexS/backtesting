@@ -1,0 +1,7 @@
+{
+  "strategies": [
+    "ExampleStrategy.js",
+    "ArmV2Strategy.js",
+    "MlKnnLorentzian.js"
+  ]
+}
