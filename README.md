@@ -13,7 +13,7 @@ Then open `http://localhost:8000/backtest_engine.html`.
 
 ### TODO:
 
-[ ] - real trade simulation (order book implemented)
+[  ] - real trade simulation (order book implemented)
 [ ] - separate paper trading, live strategy testing and monte carlo into different tabs.
 [ ] - Change UI into more modern look and take in to account the new changes.
 [ ] - Ability to visualize the monte carlo data better both raw data wise and visual representation wise. Add help texts to show if the results are good or bad.
