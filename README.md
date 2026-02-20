@@ -13,9 +13,9 @@ Then open `http://localhost:8000/backtest_engine.html`.
 
 ### TODO:
 
-[  ] - real trade simulation (order book implemented)
-[ ] - separate paper trading, live strategy testing and monte carlo into different tabs.
-[ ] - Change UI into more modern look and take in to account the new changes.
-[ ] - Ability to visualize the monte carlo data better both raw data wise and visual representation wise. Add help texts to show if the results are good or bad.
-[ ] - Ability to get real stock and crypto data to test with both in live strat and monte carlo.
-[ ] - Ability to scramble real data price movements but start and end prices stay the same.
+- [ ] Real trade simulation (order book implemented)
+- [ ] Separate paper trading, live strategy testing and monte carlo into different tabs
+- [ ] Change UI into more modern look and take into account the new changes
+- [ ] Ability to visualize the monte carlo data better both raw data wise and visual representation wise. Add help texts to show if the results are good or bad
+- [ ] Ability to get real stock and crypto data to test with both in live strat and monte carlo
+- [ ] Ability to scramble real data price movements but start and end prices stay the same
