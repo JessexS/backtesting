@@ -16,12 +16,12 @@ export function mulberry32(a) {
 
 // UI color map retained for compatibility.
 export const REGIMES = {
-  bull:     { color: '#26de81' },
-  bear:     { color: '#fc5c65' },
-  sideways: { color: '#45aaf2' },
-  swing:    { color: '#fed330' },
-  breakout: { color: '#fd9644' },
-  crash:    { color: '#a55eea' },
+  bull:     { drift:  0.0014, vM: 0.75, mr: 0.03, dur: [30, 140], color: '#26de81' },
+  bear:     { drift: -0.0018, vM: 1.00, mr: 0.03, dur: [24, 120], color: '#fc5c65' },
+  sideways: { drift:  0.0000, vM: 0.60, mr: 0.20, dur: [40, 180], color: '#45aaf2' },
+  swing:    { drift:  0.0000, vM: 1.20, mr: 0.08, dur: [24, 95],  color: '#fed330', sc: 22 },
+  breakout: { drift:  0.0035, vM: 1.85, mr: 0.00, dur: [8, 24],   color: '#fd9644' },
+  crash:    { drift: -0.0075, vM: 2.70, mr: 0.00, dur: [5, 16],   color: '#a55eea' },
 };
 
 export const REGIME_NAMES = Object.keys(REGIMES);
