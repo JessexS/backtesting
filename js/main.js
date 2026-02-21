@@ -96,6 +96,7 @@ function getScrambleOptions() {
   };
 }
 
+
 // ─── Strategy Loading ───
 
 function readStrategyParams(strat) {
@@ -867,8 +868,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnStop').addEventListener('click', stopLive);
   document.getElementById('btnReset').addEventListener('click', resetAll);
 
-  // Help / Tutorial
-  document.getElementById('btnHelp').addEventListener('click', () => {
+  document.getElementById('btnHelp')?.addEventListener('click', () => {
+    document.getElementById('tutorialModal').classList.add('show');
+  });
+  document.querySelector('.logo')?.addEventListener('click', () => {
     document.getElementById('tutorialModal').classList.add('show');
   });
   document.getElementById('btnCloseTutorial').addEventListener('click', () => {
@@ -952,7 +955,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Storage
   document.getElementById('btnSaveRun').addEventListener('click', saveCurrentRun);
-  document.getElementById('btnClearRuns').addEventListener('click', async () => {
+  document.getElementById('btnClearRuns')?.addEventListener('click', async () => {
+    if (!confirm('Clear all saved runs?')) return;
     await APP.storage.clearAll();
     await refreshSavedRuns();
   });
