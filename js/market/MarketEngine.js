@@ -1,6 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
-// MarketEngine — Synthetic OHLCV candle generation with regimes
+// MarketEngine — LOB-based synthetic OHLCV generation
 // ═══════════════════════════════════════════════════════════════
+
+import { MarketSimulator } from './MarketSimulator.js';
 
 export function mulberry32(a) {
   return function () {
@@ -12,6 +14,7 @@ export function mulberry32(a) {
   };
 }
 
+// UI color map retained for compatibility.
 export const REGIMES = {
   bull:     { drift:  0.0014, vM: 0.75, mr: 0.03, dur: [30, 140], color: '#26de81' },
   bear:     { drift: -0.0018, vM: 1.00, mr: 0.03, dur: [24, 120], color: '#fc5c65' },
@@ -23,258 +26,39 @@ export const REGIMES = {
 
 export const REGIME_NAMES = Object.keys(REGIMES);
 
-export const TRANSITIONS = {
-  bull:     { bull: 0.70, bear: 0.05, sideways: 0.12, swing: 0.09, breakout: 0.03, crash: 0.01 },
-  bear:     { bull: 0.07, bear: 0.64, sideways: 0.14, swing: 0.08, breakout: 0.01, crash: 0.06 },
-  sideways: { bull: 0.14, bear: 0.12, sideways: 0.49, swing: 0.18, breakout: 0.05, crash: 0.02 },
-  swing:    { bull: 0.13, bear: 0.10, sideways: 0.20, swing: 0.41, breakout: 0.10, crash: 0.06 },
-  breakout: { bull: 0.30, bear: 0.07, sideways: 0.12, swing: 0.10, breakout: 0.33, crash: 0.08 },
-  crash:    { bull: 0.07, bear: 0.39, sideways: 0.20, swing: 0.16, breakout: 0.03, crash: 0.15 },
-};
-
-export const TIMEFRAME_MINUTES = {
-  '1m': 1,
-  '5m': 5,
-  '15m': 15,
-  '1h': 60,
-  '4h': 240,
-  '1d': 1440,
-  '1M': 43200,
-};
-
-export const TIMEFRAMES = Object.keys(TIMEFRAME_MINUTES);
-
-function toTf(input = '1m') {
-  const normalized = `${input}`.trim();
-  if (normalized.toLowerCase() === '1mo') return '1M';
-  if (normalized.toLowerCase() === '1m' && normalized !== '1M') return '1m';
-  return TIMEFRAME_MINUTES[normalized] ? normalized : '1m';
-}
-
-export class Gen {
-  constructor(seed, startP, baseV, bias, switchPct) {
-    this.rng = mulberry32(seed);
-    this.price = startP;
-    this.baseV = baseV / 100;
-    this.bias = bias / 100;
-    this.switchPct = switchPct / 100;
-    this.regime = 'sideways';
-    this.regimeDur = 0;
-    this.maxDur = 50;
-    this.anchor = startP;
-    this.swingPhase = 0;
-    this.history = [];
-    this.regimeCounts = {};
-    this.lastRet = 0;
-    this.sigma = Math.max(0.0006, this.baseV * 0.7);
-    this.atrRel = this.sigma * 1.1;
-    REGIME_NAMES.forEach((r) => (this.regimeCounts[r] = 0));
-    this._pickDur();
-  }
-
-  _pickDur() {
-    const d = REGIMES[this.regime].dur;
-    this.maxDur = d[0] + Math.floor(this.rng() * (d[1] - d[0]));
-  }
-
-  _transition() {
-    const t = TRANSITIONS[this.regime];
-    const r = this.rng();
-    let cum = 0;
-    for (const k of REGIME_NAMES) {
-      cum += t[k];
-      if (r < cum) { this.regime = k; break; }
-    }
-    this.regimeDur = 0;
-    this._pickDur();
-    this.anchor = this.price;
-    this.swingPhase = this.rng() * Math.PI * 2;
-  }
-
-  _gaussian() {
-    const u1 = this.rng();
-    const u2 = this.rng();
-    return Math.sqrt(-2 * Math.log(u1 + 1e-12)) * Math.cos(2 * Math.PI * u2);
-  }
-
-  _wickNoise(scale) {
-    // Most candles have small wicks; rare larger rejection tails.
-    const core = scale * (0.06 + 0.45 * this.rng() ** 2);
-    const spike = this.rng() < 0.05 ? scale * (0.35 + 0.45 * this.rng()) : 0;
-    return core + spike;
-  }
-
-  next() {
-    this.regimeDur++;
-    if (this.regimeDur >= this.maxDur || this.rng() < this.switchPct) this._transition();
-    this.regimeCounts[this.regime]++;
-
-    const R = REGIMES[this.regime];
-    const targetVol = Math.max(0.00045, this.baseV * R.vM);
-    const shock = this._gaussian();
-
-    // Volatility clustering with slow mean reversion towards target vol.
-    this.sigma = Math.max(
-      0.00025,
-      0.90 * this.sigma + 0.07 * Math.abs(this.lastRet) + 0.03 * targetVol,
-    );
-
-    const drift = R.drift + this.bias;
-    const mr = R.mr > 0 ? R.mr * (this.anchor - this.price) / this.price : 0;
-    const swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2 * Math.PI / R.sc)) * this.sigma * 0.18 : 0;
-    const momentum = 0.08 * this.lastRet;
-
-    const jumpChance = this.regime === 'breakout' ? 0.10 : this.regime === 'crash' ? 0.14 : 0.01;
-    const jumpScale = this.regime === 'crash' ? 1.7 : 1.35;
-    const jump = this.rng() < jumpChance ? this._gaussian() * this.sigma * jumpScale : 0;
-
-    let ret = drift + mr + swing + momentum + shock * this.sigma + jump;
-
-    // Keep tails realistic for intraday-like candles: allow jumps, but cap pathological spikes.
-    const retCap = Math.max(0.018, 4.8 * this.sigma);
-    if (ret > retCap) ret = retCap;
-    if (ret < -retCap) ret = -retCap;
-
-    const open = this.price;
-    const close = open * Math.max(0.001, 1 + ret);
-
-    const body = Math.abs(close - open) / Math.max(open, 1e-9);
-
-    // ATR-like smooth range estimate to stabilize wick lengths across candles.
-    const trRel = Math.max(body, this.sigma * (0.35 + 0.95 * this.rng()));
-    this.atrRel = 0.93 * this.atrRel + 0.07 * trRel;
-    const rangeUnit = Math.max(this.sigma * 0.75, this.atrRel * 0.5, body * 0.55);
-
-    let upWick = this._wickNoise(rangeUnit);
-    let downWick = this._wickNoise(rangeUnit);
-
-    // Directional asymmetry: smaller wick on trend side, slightly larger on rejection side.
-    if (close >= open) {
-      upWick *= 0.9;
-      downWick *= 1.05;
-    } else {
-      upWick *= 1.05;
-      downWick *= 0.9;
-    }
-
-    // Hard cap to prevent unrealistic giant tails on normal candles.
-    const wickCap = Math.max(0.0012, 1.45 * this.sigma + 0.75 * this.atrRel + 0.85 * body);
-    upWick = Math.min(upWick, wickCap);
-    downWick = Math.min(downWick, wickCap);
-
-    let high = Math.max(open, close) * (1 + upWick);
-    let low = Math.min(open, close) * (1 - downWick);
-
-    // Rare capitulation tail in crash regime (kept bounded).
-    if (this.regime === 'crash' && this.rng() < 0.045) {
-      const extra = Math.min(wickCap * 0.9, this.sigma * (0.35 + this.rng() * 0.35));
-      low *= 1 - extra;
-    }
-
-    if (low <= 0) low = open * 0.001;
-    if (high < Math.max(open, close)) high = Math.max(open, close);
-
-    const absMove = Math.abs(ret);
-    const volume = (2800 + this.rng() * 7800) * R.vM * (1 + absMove * 7 + this.atrRel * 4.8);
-
-    this.price = close;
-    this.lastRet = ret;
-
-    const candle = {
-      time: this.history.length,
-      ts: this.history.length * 60_000,
-      open,
-      high,
-      low,
-      close,
-      volume,
-      regime: this.regime,
-    };
-
-    this.history.push(candle);
-    return candle;
-  }
-}
-
 export class MarketEngine {
-  constructor(params) {
-    this.gen = new Gen(
-      params.seed,
-      params.startPrice,
-      params.volatility,
-      params.bias,
-      params.switchPct
-    );
-    this.timeframes = {};
-    this.currentBuckets = {};
-    TIMEFRAMES.forEach((tf) => {
-      this.timeframes[tf] = [];
-      this.currentBuckets[tf] = null;
+  constructor(params = {}) {
+    this.sim = new MarketSimulator({
+      seed: params.seed,
+      startPrice: params.startPrice,
+      volatility: params.volatility,
+      bias: params.bias,
+      switchPct: params.switchPct,
+
+      // Exposed microstructure params (optional)
+      tickSize: params.tickSize ?? 0.01,
+      lambdaBid: params.lambdaBid,
+      lambdaAsk: params.lambdaAsk,
+      avgSpreadTicks: params.avgSpreadTicks,
+      sizeXm: params.sizeXm,
+      sizeAlpha: params.sizeAlpha,
+      sizeCap: params.sizeCap,
+      baseDepth: params.baseDepth,
+      bookLevels: params.bookLevels,
+      barSeconds: params.barSeconds,
+      priceImpact: params.priceImpact,
     });
-    // Keep 1m history as the generator's canonical source for backwards compatibility.
-    this.timeframes['1m'] = this.gen.history;
   }
 
-  _updateTimeframes(baseCandle) {
-    for (const tf of TIMEFRAMES) {
-      if (tf === '1m') continue;
-      const tfSize = TIMEFRAME_MINUTES[tf];
-      const tfIndex = Math.floor(baseCandle.time / tfSize);
-      let bucket = this.currentBuckets[tf];
-
-      if (!bucket || bucket.time !== tfIndex) {
-        bucket = {
-          time: tfIndex,
-          ts: tfIndex * tfSize * 60_000,
-          open: baseCandle.open,
-          high: baseCandle.high,
-          low: baseCandle.low,
-          close: baseCandle.close,
-          volume: baseCandle.volume,
-          regime: baseCandle.regime,
-        };
-        this.currentBuckets[tf] = bucket;
-        this.timeframes[tf].push(bucket);
-      } else {
-        bucket.high = Math.max(bucket.high, baseCandle.high);
-        bucket.low = Math.min(bucket.low, baseCandle.low);
-        bucket.close = baseCandle.close;
-        bucket.volume += baseCandle.volume;
-        bucket.regime = baseCandle.regime;
-      }
-    }
-  }
-
-  tick(timeframe = '1m') {
-    const c = this.gen.next();
-    this._updateTimeframes(c);
-    const tf = toTf(timeframe);
-    if (tf === '1m') return c;
-    const tfData = this.timeframes[tf];
-    return tfData[tfData.length - 1] || c;
-  }
-
-  getHistory(timeframe = '1m') {
-    const tf = toTf(timeframe);
-    return this.timeframes[tf];
-  }
-
-  printCandles(timeframe = '1m', limit = 20, precision = 4) {
-    const tf = toTf(timeframe);
-    const candles = this.getHistory(tf);
-    const rows = candles.slice(Math.max(0, candles.length - limit));
-    const p = (n) => Number(n).toFixed(precision);
-    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} ${c.regime}`);
-    return [`# ${tf} candles (${rows.length}/${candles.length})`, ...lines].join('\n');
-  }
-
-  getRegimeCounts() { return this.gen.regimeCounts; }
+  tick() { return this.sim.next(); }
+  getHistory() { return this.sim.history; }
+  getRegimeCounts() { return this.sim.regimeCounts; }
 
   printCandles(limit = 20, precision = 4) {
     const candles = this.getHistory();
     const rows = candles.slice(Math.max(0, candles.length - limit));
     const p = (n) => Number(n).toFixed(precision);
-    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} ${c.regime}`);
+    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} spr:${p(c.spread)} ${c.regime}`);
     return [`# candles (${rows.length}/${candles.length})`, ...lines].join('\n');
   }
 }
