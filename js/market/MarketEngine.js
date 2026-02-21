@@ -13,23 +13,23 @@ export function mulberry32(a) {
 }
 
 export const REGIMES = {
-  bull:     { drift:  0.003, vM: 0.8, mr: 0,    dur: [20, 80],  color: '#26de81' },
-  bear:     { drift: -0.003, vM: 1.0, mr: 0,    dur: [15, 60],  color: '#fc5c65' },
-  sideways: { drift:  0,     vM: 0.5, mr: 0.15, dur: [30, 100], color: '#45aaf2' },
-  swing:    { drift:  0,     vM: 1.3, mr: 0.08, dur: [20, 60],  color: '#fed330', sc: 20 },
-  breakout: { drift:  0.006, vM: 2.5, mr: 0,    dur: [10, 30],  color: '#fd9644' },
-  crash:    { drift: -0.015, vM: 4.0, mr: 0,    dur: [5, 20],   color: '#a55eea' },
+  bull:     { drift:  0.0014, vM: 0.75, mr: 0.03, dur: [30, 140], color: '#26de81' },
+  bear:     { drift: -0.0018, vM: 1.00, mr: 0.03, dur: [24, 120], color: '#fc5c65' },
+  sideways: { drift:  0.0000, vM: 0.60, mr: 0.20, dur: [40, 180], color: '#45aaf2' },
+  swing:    { drift:  0.0000, vM: 1.20, mr: 0.08, dur: [24, 95],  color: '#fed330', sc: 22 },
+  breakout: { drift:  0.0035, vM: 1.85, mr: 0.00, dur: [8, 24],   color: '#fd9644' },
+  crash:    { drift: -0.0075, vM: 2.70, mr: 0.00, dur: [5, 16],   color: '#a55eea' },
 };
 
 export const REGIME_NAMES = Object.keys(REGIMES);
 
 export const TRANSITIONS = {
-  bull:     { bull: 0.65, bear: 0.05, sideways: 0.12, swing: 0.10, breakout: 0.06, crash: 0.02 },
-  bear:     { bull: 0.05, bear: 0.60, sideways: 0.15, swing: 0.10, breakout: 0.02, crash: 0.08 },
-  sideways: { bull: 0.15, bear: 0.12, sideways: 0.45, swing: 0.18, breakout: 0.07, crash: 0.03 },
-  swing:    { bull: 0.12, bear: 0.10, sideways: 0.20, swing: 0.40, breakout: 0.10, crash: 0.08 },
-  breakout: { bull: 0.25, bear: 0.05, sideways: 0.10, swing: 0.10, breakout: 0.40, crash: 0.10 },
-  crash:    { bull: 0.05, bear: 0.30, sideways: 0.20, swing: 0.15, breakout: 0.05, crash: 0.25 },
+  bull:     { bull: 0.70, bear: 0.05, sideways: 0.12, swing: 0.09, breakout: 0.03, crash: 0.01 },
+  bear:     { bull: 0.07, bear: 0.64, sideways: 0.14, swing: 0.08, breakout: 0.01, crash: 0.06 },
+  sideways: { bull: 0.14, bear: 0.12, sideways: 0.49, swing: 0.18, breakout: 0.05, crash: 0.02 },
+  swing:    { bull: 0.13, bear: 0.10, sideways: 0.20, swing: 0.41, breakout: 0.10, crash: 0.06 },
+  breakout: { bull: 0.30, bear: 0.07, sideways: 0.12, swing: 0.10, breakout: 0.33, crash: 0.08 },
+  crash:    { bull: 0.07, bear: 0.39, sideways: 0.20, swing: 0.16, breakout: 0.03, crash: 0.15 },
 };
 
 export class Gen {
@@ -46,6 +46,8 @@ export class Gen {
     this.swingPhase = 0;
     this.history = [];
     this.regimeCounts = {};
+    this.lastRet = 0;
+    this.sigma = Math.max(0.0006, this.baseV * 0.7);
     REGIME_NAMES.forEach((r) => (this.regimeCounts[r] = 0));
     this._pickDur();
   }
@@ -69,36 +71,97 @@ export class Gen {
     this.swingPhase = this.rng() * Math.PI * 2;
   }
 
+  _gaussian() {
+    const u1 = this.rng();
+    const u2 = this.rng();
+    return Math.sqrt(-2 * Math.log(u1 + 1e-12)) * Math.cos(2 * Math.PI * u2);
+  }
+
+  _wickNoise(scale) {
+    // Most candles have small wicks; rare larger rejection tails.
+    const core = scale * (0.06 + 0.45 * this.rng() ** 2);
+    const spike = this.rng() < 0.05 ? scale * (0.35 + 0.45 * this.rng()) : 0;
+    return core + spike;
+  }
+
   next() {
     this.regimeDur++;
     if (this.regimeDur >= this.maxDur || this.rng() < this.switchPct) this._transition();
     this.regimeCounts[this.regime]++;
 
     const R = REGIMES[this.regime];
-    const vol = this.baseV * R.vM;
+    const targetVol = Math.max(0.00045, this.baseV * R.vM);
+    const shock = this._gaussian();
+
+    // Volatility clustering with slow mean reversion towards target vol.
+    this.sigma = Math.max(
+      0.00025,
+      0.90 * this.sigma + 0.07 * Math.abs(this.lastRet) + 0.03 * targetVol,
+    );
+
     const drift = R.drift + this.bias;
     const mr = R.mr > 0 ? R.mr * (this.anchor - this.price) / this.price : 0;
-    const swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2 * Math.PI / R.sc)) * vol * 0.4 : 0;
-    const u1 = this.rng(), u2 = this.rng();
-    const z = Math.sqrt(-2 * Math.log(u1 + 1e-10)) * Math.cos(2 * Math.PI * u2);
-    const ret = drift + mr + swing + vol * z;
+    const swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2 * Math.PI / R.sc)) * this.sigma * 0.18 : 0;
+    const momentum = 0.08 * this.lastRet;
+
+    const jumpChance = this.regime === 'breakout' ? 0.10 : this.regime === 'crash' ? 0.14 : 0.01;
+    const jumpScale = this.regime === 'crash' ? 1.7 : 1.35;
+    const jump = this.rng() < jumpChance ? this._gaussian() * this.sigma * jumpScale : 0;
+
+    const ret = drift + mr + swing + momentum + shock * this.sigma + jump;
 
     const open = this.price;
-    const close = open * (1 + ret);
-    const wHi = Math.abs(vol * (0.3 + this.rng() * 0.7));
-    const wLo = Math.abs(vol * (0.3 + this.rng() * 0.7));
-    let high, low;
+    const close = open * Math.max(0.001, 1 + ret);
+
+    const body = Math.abs(close - open) / Math.max(open, 1e-9);
+    const rangeUnit = Math.max(this.sigma, body * 0.65);
+
+    let upWick = this._wickNoise(rangeUnit);
+    let downWick = this._wickNoise(rangeUnit);
+
+    // Directional asymmetry: smaller wick on trend side, slightly larger on rejection side.
     if (close >= open) {
-      high = Math.max(open, close) * (1 + wHi);
-      low = Math.min(open, close) * (1 - wLo * 0.5);
+      upWick *= 0.9;
+      downWick *= 1.05;
     } else {
-      high = Math.max(open, close) * (1 + wHi * 0.5);
-      low = Math.min(open, close) * (1 - wLo);
+      upWick *= 1.05;
+      downWick *= 0.9;
     }
+
+    // Hard cap to prevent unrealistic giant tails on normal candles.
+    const wickCap = Math.max(0.0012, 1.75 * this.sigma + 1.15 * body);
+    upWick = Math.min(upWick, wickCap);
+    downWick = Math.min(downWick, wickCap);
+
+    let high = Math.max(open, close) * (1 + upWick);
+    let low = Math.min(open, close) * (1 - downWick);
+
+    // Rare capitulation tail in crash regime (kept bounded).
+    if (this.regime === 'crash' && this.rng() < 0.045) {
+      const extra = Math.min(wickCap * 0.9, this.sigma * (0.35 + this.rng() * 0.35));
+      low *= 1 - extra;
+    }
+
     if (low <= 0) low = open * 0.001;
-    const volume = (5000 + this.rng() * 15000) * R.vM;
+    if (high < Math.max(open, close)) high = Math.max(open, close);
+
+    const absMove = Math.abs(ret);
+    const volume = (2800 + this.rng() * 7800) * R.vM * (1 + absMove * 8 + this.sigma * 5.5);
+
     this.price = close;
-    const candle = { time: this.history.length, open, high, low, close, volume, regime: this.regime };
+    this.lastRet = ret;
+
+    const candle = {
+      time: this.history.length,
+      ts: this.history.length * 60_000,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      regime: this.regime,
+    };
+
     this.history.push(candle);
     return candle;
   }
@@ -118,4 +181,12 @@ export class MarketEngine {
   tick() { return this.gen.next(); }
   getHistory() { return this.gen.history; }
   getRegimeCounts() { return this.gen.regimeCounts; }
+
+  printCandles(limit = 20, precision = 4) {
+    const candles = this.getHistory();
+    const rows = candles.slice(Math.max(0, candles.length - limit));
+    const p = (n) => Number(n).toFixed(precision);
+    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} ${c.regime}`);
+    return [`# candles (${rows.length}/${candles.length})`, ...lines].join('\n');
+  }
 }
