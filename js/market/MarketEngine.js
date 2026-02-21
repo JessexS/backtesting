@@ -13,24 +13,43 @@ export function mulberry32(a) {
 }
 
 export const REGIMES = {
-  bull:     { drift:  0.0014, vM: 0.75, mr: 0.03, dur: [30, 140], color: '#26de81' },
-  bear:     { drift: -0.0018, vM: 1.00, mr: 0.03, dur: [24, 120], color: '#fc5c65' },
-  sideways: { drift:  0.0000, vM: 0.60, mr: 0.20, dur: [40, 180], color: '#45aaf2' },
-  swing:    { drift:  0.0000, vM: 1.20, mr: 0.08, dur: [24, 95],  color: '#fed330', sc: 22 },
-  breakout: { drift:  0.0035, vM: 1.85, mr: 0.00, dur: [8, 24],   color: '#fd9644' },
-  crash:    { drift: -0.0075, vM: 2.70, mr: 0.00, dur: [5, 16],   color: '#a55eea' },
+  bull:     { drift:  0.0018, vM: 0.8, mr: 0.02, dur: [30, 140], color: '#26de81' },
+  bear:     { drift: -0.0022, vM: 1.1, mr: 0.02, dur: [25, 120], color: '#fc5c65' },
+  sideways: { drift:  0,      vM: 0.55, mr: 0.22, dur: [40, 180], color: '#45aaf2' },
+  swing:    { drift:  0,      vM: 1.35, mr: 0.10, dur: [30, 100], color: '#fed330', sc: 24 },
+  breakout: { drift:  0.0042, vM: 2.2, mr: 0,    dur: [8, 30],   color: '#fd9644' },
+  crash:    { drift: -0.0100, vM: 3.4, mr: 0,    dur: [5, 18],   color: '#a55eea' },
 };
 
 export const REGIME_NAMES = Object.keys(REGIMES);
 
 export const TRANSITIONS = {
-  bull:     { bull: 0.70, bear: 0.05, sideways: 0.12, swing: 0.09, breakout: 0.03, crash: 0.01 },
-  bear:     { bull: 0.07, bear: 0.64, sideways: 0.14, swing: 0.08, breakout: 0.01, crash: 0.06 },
-  sideways: { bull: 0.14, bear: 0.12, sideways: 0.49, swing: 0.18, breakout: 0.05, crash: 0.02 },
-  swing:    { bull: 0.13, bear: 0.10, sideways: 0.20, swing: 0.41, breakout: 0.10, crash: 0.06 },
-  breakout: { bull: 0.30, bear: 0.07, sideways: 0.12, swing: 0.10, breakout: 0.33, crash: 0.08 },
-  crash:    { bull: 0.07, bear: 0.39, sideways: 0.20, swing: 0.16, breakout: 0.03, crash: 0.15 },
+  bull:     { bull: 0.68, bear: 0.05, sideways: 0.12, swing: 0.10, breakout: 0.04, crash: 0.01 },
+  bear:     { bull: 0.08, bear: 0.62, sideways: 0.14, swing: 0.08, breakout: 0.01, crash: 0.07 },
+  sideways: { bull: 0.14, bear: 0.12, sideways: 0.48, swing: 0.18, breakout: 0.06, crash: 0.02 },
+  swing:    { bull: 0.12, bear: 0.11, sideways: 0.18, swing: 0.42, breakout: 0.11, crash: 0.06 },
+  breakout: { bull: 0.28, bear: 0.07, sideways: 0.12, swing: 0.10, breakout: 0.33, crash: 0.10 },
+  crash:    { bull: 0.05, bear: 0.37, sideways: 0.20, swing: 0.15, breakout: 0.03, crash: 0.20 },
 };
+
+export const TIMEFRAME_MINUTES = {
+  '1m': 1,
+  '5m': 5,
+  '15m': 15,
+  '1h': 60,
+  '4h': 240,
+  '1d': 1440,
+  '1M': 43200,
+};
+
+export const TIMEFRAMES = Object.keys(TIMEFRAME_MINUTES);
+
+function toTf(input = '1m') {
+  const normalized = `${input}`.trim();
+  if (normalized.toLowerCase() === '1mo') return '1M';
+  if (normalized.toLowerCase() === '1m' && normalized !== '1M') return '1m';
+  return TIMEFRAME_MINUTES[normalized] ? normalized : '1m';
+}
 
 export class Gen {
   constructor(seed, startP, baseV, bias, switchPct) {
@@ -47,7 +66,7 @@ export class Gen {
     this.history = [];
     this.regimeCounts = {};
     this.lastRet = 0;
-    this.sigma = Math.max(0.0006, this.baseV * 0.7);
+    this.sigma = Math.max(0.0008, this.baseV * 0.8);
     REGIME_NAMES.forEach((r) => (this.regimeCounts[r] = 0));
     this._pickDur();
   }
@@ -77,76 +96,51 @@ export class Gen {
     return Math.sqrt(-2 * Math.log(u1 + 1e-12)) * Math.cos(2 * Math.PI * u2);
   }
 
-  _wickNoise(scale) {
-    // Most candles have small wicks; rare larger rejection tails.
-    const core = scale * (0.06 + 0.45 * this.rng() ** 2);
-    const spike = this.rng() < 0.05 ? scale * (0.35 + 0.45 * this.rng()) : 0;
-    return core + spike;
-  }
-
   next() {
     this.regimeDur++;
     if (this.regimeDur >= this.maxDur || this.rng() < this.switchPct) this._transition();
     this.regimeCounts[this.regime]++;
 
     const R = REGIMES[this.regime];
-    const targetVol = Math.max(0.00045, this.baseV * R.vM);
+    const targetVol = Math.max(0.0005, this.baseV * R.vM);
     const shock = this._gaussian();
 
-    // Volatility clustering with slow mean reversion towards target vol.
+    // Light GARCH-like volatility clustering for more realistic runs of calm/violent candles.
     this.sigma = Math.max(
-      0.00025,
-      0.90 * this.sigma + 0.07 * Math.abs(this.lastRet) + 0.03 * targetVol,
+      0.0003,
+      0.86 * this.sigma + 0.10 * Math.abs(this.lastRet) + 0.04 * targetVol,
     );
 
     const drift = R.drift + this.bias;
-    const mr = R.mr > 0 ? R.mr * (this.anchor - this.price) / this.price : 0;
-    const swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2 * Math.PI / R.sc)) * this.sigma * 0.18 : 0;
-    const momentum = 0.08 * this.lastRet;
+    const meanReversion = R.mr > 0 ? R.mr * (this.anchor - this.price) / this.price : 0;
+    const swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2 * Math.PI / R.sc)) * this.sigma * 0.3 : 0;
+    const momentum = 0.12 * this.lastRet;
 
-    const jumpChance = this.regime === 'breakout' ? 0.10 : this.regime === 'crash' ? 0.14 : 0.01;
-    const jumpScale = this.regime === 'crash' ? 1.7 : 1.35;
-    const jump = this.rng() < jumpChance ? this._gaussian() * this.sigma * jumpScale : 0;
+    const jumpChance = this.regime === 'breakout' ? 0.18 : this.regime === 'crash' ? 0.24 : 0.02;
+    const jump = this.rng() < jumpChance ? this._gaussian() * this.sigma * (1.5 + this.rng() * 1.8) : 0;
 
-    const ret = drift + mr + swing + momentum + shock * this.sigma + jump;
+    const ret = drift + meanReversion + swing + momentum + shock * this.sigma + jump;
 
     const open = this.price;
     const close = open * Math.max(0.001, 1 + ret);
 
     const body = Math.abs(close - open) / Math.max(open, 1e-9);
-    const rangeUnit = Math.max(this.sigma, body * 0.65);
-
-    let upWick = this._wickNoise(rangeUnit);
-    let downWick = this._wickNoise(rangeUnit);
-
-    // Directional asymmetry: smaller wick on trend side, slightly larger on rejection side.
-    if (close >= open) {
-      upWick *= 0.9;
-      downWick *= 1.05;
-    } else {
-      upWick *= 1.05;
-      downWick *= 0.9;
-    }
-
-    // Hard cap to prevent unrealistic giant tails on normal candles.
-    const wickCap = Math.max(0.0012, 1.75 * this.sigma + 1.15 * body);
-    upWick = Math.min(upWick, wickCap);
-    downWick = Math.min(downWick, wickCap);
+    const wickScale = this.sigma * (0.45 + this.rng() * 0.95);
+    const upWick = wickScale * (0.6 + this.rng() * 1.1) + body * (close < open ? 0.5 : 0.2);
+    const downWick = wickScale * (0.6 + this.rng() * 1.1) + body * (close >= open ? 0.5 : 0.2);
 
     let high = Math.max(open, close) * (1 + upWick);
     let low = Math.min(open, close) * (1 - downWick);
 
-    // Rare capitulation tail in crash regime (kept bounded).
-    if (this.regime === 'crash' && this.rng() < 0.045) {
-      const extra = Math.min(wickCap * 0.9, this.sigma * (0.35 + this.rng() * 0.35));
-      low *= 1 - extra;
+    if (this.regime === 'crash' && this.rng() < 0.1) {
+      low *= 1 - this.sigma * (1 + this.rng());
     }
 
     if (low <= 0) low = open * 0.001;
     if (high < Math.max(open, close)) high = Math.max(open, close);
 
     const absMove = Math.abs(ret);
-    const volume = (2800 + this.rng() * 7800) * R.vM * (1 + absMove * 8 + this.sigma * 5.5);
+    const volume = (2000 + this.rng() * 8000) * R.vM * (1 + absMove * 12 + this.sigma * 8);
 
     this.price = close;
     this.lastRet = ret;
@@ -176,10 +170,69 @@ export class MarketEngine {
       params.bias,
       params.switchPct
     );
+    this.timeframes = {};
+    this.currentBuckets = {};
+    TIMEFRAMES.forEach((tf) => {
+      this.timeframes[tf] = [];
+      this.currentBuckets[tf] = null;
+    });
+    // Keep 1m history as the generator's canonical source for backwards compatibility.
+    this.timeframes['1m'] = this.gen.history;
   }
 
-  tick() { return this.gen.next(); }
-  getHistory() { return this.gen.history; }
+  _updateTimeframes(baseCandle) {
+    for (const tf of TIMEFRAMES) {
+      if (tf === '1m') continue;
+      const tfSize = TIMEFRAME_MINUTES[tf];
+      const tfIndex = Math.floor(baseCandle.time / tfSize);
+      let bucket = this.currentBuckets[tf];
+
+      if (!bucket || bucket.time !== tfIndex) {
+        bucket = {
+          time: tfIndex,
+          ts: tfIndex * tfSize * 60_000,
+          open: baseCandle.open,
+          high: baseCandle.high,
+          low: baseCandle.low,
+          close: baseCandle.close,
+          volume: baseCandle.volume,
+          regime: baseCandle.regime,
+        };
+        this.currentBuckets[tf] = bucket;
+        this.timeframes[tf].push(bucket);
+      } else {
+        bucket.high = Math.max(bucket.high, baseCandle.high);
+        bucket.low = Math.min(bucket.low, baseCandle.low);
+        bucket.close = baseCandle.close;
+        bucket.volume += baseCandle.volume;
+        bucket.regime = baseCandle.regime;
+      }
+    }
+  }
+
+  tick(timeframe = '1m') {
+    const c = this.gen.next();
+    this._updateTimeframes(c);
+    const tf = toTf(timeframe);
+    if (tf === '1m') return c;
+    const tfData = this.timeframes[tf];
+    return tfData[tfData.length - 1] || c;
+  }
+
+  getHistory(timeframe = '1m') {
+    const tf = toTf(timeframe);
+    return this.timeframes[tf];
+  }
+
+  printCandles(timeframe = '1m', limit = 20, precision = 4) {
+    const tf = toTf(timeframe);
+    const candles = this.getHistory(tf);
+    const rows = candles.slice(Math.max(0, candles.length - limit));
+    const p = (n) => Number(n).toFixed(precision);
+    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} ${c.regime}`);
+    return [`# ${tf} candles (${rows.length}/${candles.length})`, ...lines].join('\n');
+  }
+
   getRegimeCounts() { return this.gen.regimeCounts; }
 
   printCandles(limit = 20, precision = 4) {
