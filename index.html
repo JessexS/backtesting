@@ -32,7 +32,7 @@
       <button class="btn btn-yellow" id="btnPause" disabled>&#9208; PAUSE</button>
       <button class="btn btn-red" id="btnStop" disabled>&#9632; STOP</button>
       <div class="vdiv desktop-only"></div>
-      <button class="btn btn-ghost" id="btnReset">&#10227; RESET</button>
+      <button class="btn btn-ghost" id="btnReset" data-mobile="secondary">&#10227; RESET</button>
     </div>
   </header>
 
@@ -283,6 +283,18 @@
     <div class="chart-toolbar">
       <span class="pair-badge" id="pairBadge">BTC/USDT</span>
       <span class="live-badge" id="liveBadge">LIVE</span>
+      <div class="tf-group">
+        <label for="chartTimeframe">TF</label>
+        <select id="chartTimeframe">
+          <option value="1m">1m</option>
+          <option value="5m">5m</option>
+          <option value="15m">15m</option>
+          <option value="1h">1h</option>
+          <option value="4h">4h</option>
+          <option value="1d">1d</option>
+          <option value="1M">1M</option>
+        </select>
+      </div>
       <div class="ind-legend" id="indLegend"></div>
       <span class="chart-hint desktop-only">Scroll = pan · Ctrl+Scroll = zoom · Drag = pan</span>
     </div>
@@ -571,10 +583,10 @@
 
 <!-- MOBILE TAB BAR -->
 <nav class="mobile-tabs" id="mobileTabs">
-  <button class="mob-tab active" data-tab="chart">Chart</button>
-  <button class="mob-tab" data-tab="trading">Trading</button>
-  <button class="mob-tab" data-tab="montecarlo">Monte Carlo</button>
-  <button class="mob-tab" data-tab="performance">Performance</button>
+  <button class="mob-tab active" data-tab="chart"><span class="mob-ic">📈</span><span class="mob-label">Chart</span></button>
+  <button class="mob-tab" data-tab="trading"><span class="mob-ic">💼</span><span class="mob-label">Trading</span></button>
+  <button class="mob-tab" data-tab="montecarlo"><span class="mob-ic">🎲</span><span class="mob-label">Monte Carlo</span></button>
+  <button class="mob-tab" data-tab="performance"><span class="mob-ic">📊</span><span class="mob-label">Performance</span></button>
 </nav>
 
 <!-- EXPORT MODAL -->

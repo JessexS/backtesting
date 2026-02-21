@@ -45,6 +45,7 @@ const APP = {
   lastTradeIdx: 0,
   realDataCandles: null,  // For real data mode
   realDataIdx: 0,
+  chartTimeframe: '1m',
 };
 
 // ─── Helpers ───
@@ -94,6 +95,47 @@ function getScrambleOptions() {
       sizeMultiplier: document.getElementById('mcScrSize').checked,
     },
   };
+}
+
+
+const TF_MINUTES = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '4h': 240, '1d': 1440, '1M': 43200 };
+
+function aggregateCandles(candles, timeframe = '1m') {
+  const step = TF_MINUTES[timeframe] || 1;
+  if (step <= 1 || candles.length === 0) return candles;
+
+  const out = [];
+  let bucket = null;
+  for (const c of candles) {
+    const idx = Math.floor((c.time ?? 0) / step);
+    if (!bucket || bucket.time !== idx) {
+      bucket = {
+        time: idx,
+        ts: idx * step * 60_000,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+        regime: c.regime || 'n/a',
+      };
+      out.push(bucket);
+    } else {
+      bucket.high = Math.max(bucket.high, c.high);
+      bucket.low = Math.min(bucket.low, c.low);
+      bucket.close = c.close;
+      bucket.volume += c.volume;
+      bucket.regime = c.regime || bucket.regime;
+    }
+  }
+  return out;
+}
+
+function getDisplayedHistory(baseHistory) {
+  const tf = APP.chartTimeframe || '1m';
+  if (tf === '1m') return baseHistory;
+  if (APP.market) return APP.market.getHistory(tf);
+  return aggregateCandles(baseHistory, tf);
 }
 
 // ─── Strategy Loading ───
@@ -267,7 +309,7 @@ function tick() {
 
     if (APP.realDataIdx >= APP.realDataCandles.length) {
       const liqs = APP.trading.update(c);
-      updateUI(history);
+      updateUI(history, c);
       stopLive();
       return;
     }
@@ -310,10 +352,11 @@ function tick() {
   APP.ui.addTradeMarkers(APP.ui.chart, trades, APP.lastTradeIdx);
   APP.lastTradeIdx = trades.length;
 
-  updateUI(history);
+  updateUI(history, c);
 }
 
-function updateUI(history) {
+function updateUI(baseHistory, latestCandle = null) {
+  const history = getDisplayedHistory(baseHistory);
   if (!APP.trading) return;
   const n = history.length;
   if (!n) return;
@@ -867,8 +910,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnStop').addEventListener('click', stopLive);
   document.getElementById('btnReset').addEventListener('click', resetAll);
 
-  // Help / Tutorial
-  document.getElementById('btnHelp').addEventListener('click', () => {
+  const tfEl = document.getElementById('chartTimeframe');
+  if (tfEl) {
+    APP.chartTimeframe = tfEl.value || '1m';
+    tfEl.addEventListener('change', () => {
+      APP.chartTimeframe = tfEl.value;
+      const baseHistory = APP.market
+        ? APP.market.getHistory('1m')
+        : (APP.realDataCandles ? APP.realDataCandles.slice(0, APP.realDataIdx) : []);
+      if (baseHistory.length > 0) updateUI(baseHistory);
+    });
+  }
+
+  document.getElementById('btnHelp')?.addEventListener('click', () => {
+    document.getElementById('tutorialModal').classList.add('show');
+  });
+  document.querySelector('.logo')?.addEventListener('click', () => {
     document.getElementById('tutorialModal').classList.add('show');
   });
   document.getElementById('btnCloseTutorial').addEventListener('click', () => {
@@ -952,7 +1009,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Storage
   document.getElementById('btnSaveRun').addEventListener('click', saveCurrentRun);
-  document.getElementById('btnClearRuns').addEventListener('click', async () => {
+  document.getElementById('btnClearRuns')?.addEventListener('click', async () => {
+    if (!confirm('Clear all saved runs?')) return;
     await APP.storage.clearAll();
     await refreshSavedRuns();
   });
