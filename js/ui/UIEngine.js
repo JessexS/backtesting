@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // UIEngine — All DOM manipulation, Chart, EquityChart, mobile tabs
+// Heatmaps, MC visualization, trade breakdown, benchmark
 // ═══════════════════════════════════════════════════════════════
 
 import { REGIMES, REGIME_NAMES } from '../market/MarketEngine.js';
@@ -68,7 +69,6 @@ class CandlestickChart {
       document.getElementById('tooltip').style.display = 'none';
     });
 
-    // Touch support
     this.canvas.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         this.isDragging = true;
@@ -159,7 +159,6 @@ class CandlestickChart {
     if (hi === lo) { hi += 1; lo -= 1; }
     const toY = (p) => H - (p - lo) / (hi - lo) * H;
 
-    // Grid
     ctx.strokeStyle = 'rgba(28,40,48,0.6)';
     ctx.lineWidth = 0.5;
     ctx.fillStyle = '#4a6070';
@@ -170,7 +169,6 @@ class CandlestickChart {
       ctx.fillText((hi - (g / 6) * (hi - lo)).toFixed(2), 4, gy - 2);
     }
 
-    // Candles
     for (let i = start; i < end; i++) {
       const c = this.data[i];
       const x = (i - start) * barStep;
@@ -185,7 +183,6 @@ class CandlestickChart {
       ctx.fillRect(x, bt, this.barWidth, Math.max(1, bb - bt));
     }
 
-    // Indicator overlays
     for (const name in this.indicatorOverlays) {
       const ov = this.indicatorOverlays[name];
       ctx.strokeStyle = ov.color || '#fff';
@@ -206,7 +203,6 @@ class CandlestickChart {
       ctx.setLineDash([]);
     }
 
-    // Markers
     for (const m of this.markers) {
       if (m.idx < start || m.idx >= end) continue;
       const x = (m.idx - start) * barStep + this.barWidth / 2;
@@ -221,7 +217,6 @@ class CandlestickChart {
       ctx.fill();
     }
 
-    // Crosshair
     if (this.hoverIdx >= start && this.hoverIdx < end) {
       const hx = (this.hoverIdx - start) * barStep + this.barWidth / 2;
       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
@@ -233,7 +228,7 @@ class CandlestickChart {
   }
 }
 
-// ─── EquityChart ───
+// ─── EquityChart (with peak/trough annotations) ───
 
 class EquityChart {
   constructor(canvasId) {
@@ -290,6 +285,35 @@ class EquityChart {
     ctx.stroke();
     ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
     ctx.fillStyle = grad; ctx.fill();
+
+    // Peak/trough annotations
+    let peak = this.data[0], peakIdx = 0;
+    let maxDD = 0, maxDDEnd = 0, maxDDStart = 0;
+    let currentPeak = this.data[0], currentPeakIdx = 0;
+    for (let i = 1; i < this.data.length; i++) {
+      if (this.data[i] > peak) { peak = this.data[i]; peakIdx = i; }
+      if (this.data[i] > currentPeak) { currentPeak = this.data[i]; currentPeakIdx = i; }
+      const dd = (currentPeak - this.data[i]) / currentPeak;
+      if (dd > maxDD) { maxDD = dd; maxDDEnd = i; maxDDStart = currentPeakIdx; }
+    }
+
+    const peakX = peakIdx / (this.data.length - 1) * W;
+    const peakY = toY(peak);
+    ctx.fillStyle = '#26de81';
+    ctx.beginPath(); ctx.arc(peakX, peakY, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.font = '8px "IBM Plex Mono"';
+    ctx.fillText('Peak ' + peak.toFixed(0), peakX + 5, peakY - 5);
+
+    if (maxDD > 0.01) {
+      const ddStartX = maxDDStart / (this.data.length - 1) * W;
+      const ddEndX = maxDDEnd / (this.data.length - 1) * W;
+      ctx.fillStyle = 'rgba(252,92,101,0.08)';
+      ctx.fillRect(ddStartX, 0, ddEndX - ddStartX, H);
+      ctx.fillStyle = '#fc5c65';
+      ctx.font = '8px "IBM Plex Mono"';
+      ctx.fillText('-' + (maxDD * 100).toFixed(1) + '%', (ddStartX + ddEndX) / 2, H - 5);
+    }
+
     ctx.fillStyle = '#4a6070'; ctx.font = '9px "IBM Plex Mono"';
     ctx.fillText(hi.toFixed(0), 4, 12);
     ctx.fillText(lo.toFixed(0), 4, H - 4);
@@ -322,8 +346,6 @@ export class UIEngine {
     if (this.eqChart) { this.eqChart.resize(); this.eqChart.draw(); }
   }
 
-  // ─── Mobile Tabs ───
-
   _initMobileTabs() {
     const tabs = document.querySelectorAll('.mob-tab');
     tabs.forEach((tab) => {
@@ -340,41 +362,29 @@ export class UIEngine {
     const left = document.getElementById('sidebarLeft');
     const main = document.getElementById('mainArea');
     const right = document.getElementById('sidebarRight');
-
     [left, main, right].forEach((el) => el.classList.remove('mob-active'));
-
     switch (tab) {
       case 'chart':
-        left.classList.add('mob-active');
-        main.classList.add('mob-active');
-        break;
+        left.classList.add('mob-active'); main.classList.add('mob-active'); break;
       case 'trading':
         right.classList.add('mob-active');
-        // Show trading panels, hide MC
-        this._showPanels(['panelStrategy', 'panelPositions'], right);
-        break;
+        this._showPanels(['panelStrategy', 'panelPositions'], right); break;
       case 'montecarlo':
         right.classList.add('mob-active');
-        this._showPanels(['panelMonteCarlo'], right);
-        break;
+        this._showPanels(['panelMonteCarlo'], right); break;
       case 'performance':
         right.classList.add('mob-active');
-        this._showPanels(['panelPerformance', 'panelTradeLog'], right);
-        break;
+        this._showPanels(['panelPerformance', 'panelTradeLog'], right); break;
     }
     setTimeout(() => this.resize(), 50);
   }
 
   _showPanels(ids, container) {
-    // On mobile, all panels in right sidebar are always in DOM
-    // We just scroll to the right area
     const panels = container.querySelectorAll('.panel');
     panels.forEach((p) => {
       p.style.display = ids.some((id) => p.id === id || !p.id) ? '' : 'none';
     });
   }
-
-  // ─── Panel Collapse ───
 
   _initPanelCollapse() {
     document.querySelectorAll('.panel-collapse').forEach((panel) => {
@@ -385,8 +395,6 @@ export class UIEngine {
       if (body) body.addEventListener('click', (e) => e.stopPropagation());
     });
   }
-
-  // ─── Slider Bindings ───
 
   _initSliderBindings() {
     const bind = (id, labelId, fmt) => {
@@ -404,25 +412,18 @@ export class UIEngine {
     bind('mcIntensity', 'lbMcIntensity', (v) => v + '%');
   }
 
-  // ─── MC Mode Toggle ───
-
   _initMcModeToggle() {
     const modeEl = document.getElementById('mcMode');
     if (!modeEl) return;
     modeEl.addEventListener('change', () => {
       const mode = modeEl.value;
-      const show = (id, vis) => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = vis ? '' : 'none';
-      };
+      const show = (id, vis) => { const el = document.getElementById(id); if (el) el.style.display = vis ? '' : 'none'; };
       show('mcChaosPresetGroup', mode === 'combined' || mode === 'scramble');
       show('mcScrambleModeGroup', mode === 'scramble' || mode === 'combined');
       show('mcIntensityGroup', mode === 'scramble' || mode === 'combined');
       show('mcScrambleChecks', mode === 'scramble' || mode === 'combined');
     });
   }
-
-  // ─── Speed Grid ───
 
   initSpeedGrid(callback) {
     document.querySelectorAll('.speed-btn').forEach((btn) => {
@@ -434,47 +435,29 @@ export class UIEngine {
     });
   }
 
-  // ─── State Updates ───
-
   setRunningState(state) {
     const dot = document.getElementById('dot');
     const badge = document.getElementById('liveBadge');
     const btnStart = document.getElementById('btnStart');
     const btnPause = document.getElementById('btnPause');
     const btnStop = document.getElementById('btnStop');
-
     dot.className = 'logo-dot';
     badge.className = 'live-badge';
-
     switch (state) {
       case 'running':
-        dot.classList.add('live');
-        badge.classList.add('show', 'live');
-        badge.textContent = 'LIVE';
-        btnStart.disabled = true;
-        btnPause.disabled = false;
-        btnStop.disabled = false;
-        break;
+        dot.classList.add('live'); badge.classList.add('show', 'live'); badge.textContent = 'LIVE';
+        btnStart.disabled = true; btnPause.disabled = false; btnStop.disabled = false; break;
       case 'paused':
-        dot.classList.add('paused');
-        badge.classList.add('show', 'paused');
-        badge.textContent = 'PAUSED';
-        btnStart.disabled = false;
-        btnPause.disabled = true;
-        btnStop.disabled = false;
-        break;
+        dot.classList.add('paused'); badge.classList.add('show', 'paused'); badge.textContent = 'PAUSED';
+        btnStart.disabled = false; btnPause.disabled = true; btnStop.disabled = false; break;
       case 'stopped':
-        btnStart.disabled = false;
-        btnPause.disabled = true;
-        btnStop.disabled = true;
+        btnStart.disabled = false; btnPause.disabled = true; btnStop.disabled = true;
         document.getElementById('btnExport').disabled = false;
         document.getElementById('btnExportTrades').disabled = false;
+        document.getElementById('btnReport').disabled = false;
         break;
       case 'idle':
-        btnStart.disabled = false;
-        btnPause.disabled = true;
-        btnStop.disabled = true;
-        break;
+        btnStart.disabled = false; btnPause.disabled = true; btnStop.disabled = true; break;
     }
   }
 
@@ -487,19 +470,15 @@ export class UIEngine {
     document.getElementById('eqArea').style.display = show ? 'block' : 'none';
   }
 
-  // ─── Data Updates ───
-
   updateTopbar(history, trading) {
     const n = history.length;
     if (!n) return;
     const c = history[n - 1];
-
     document.getElementById('tkP').textContent = c.close.toFixed(2);
     const chg = n > 1 ? ((c.close - history[0].close) / history[0].close * 100).toFixed(2) : '0.00';
     const chgEl = document.getElementById('tkC');
     chgEl.textContent = (chg >= 0 ? '+' : '') + chg + '%';
     chgEl.className = 'tick-val ' + (chg >= 0 ? 'fu' : 'fd');
-
     let allHigh = -Infinity, allLow = Infinity;
     for (const h of history) { if (h.high > allHigh) allHigh = h.high; if (h.low < allLow) allLow = h.low; }
     document.getElementById('tkH').textContent = allHigh.toFixed(2);
@@ -513,26 +492,23 @@ export class UIEngine {
     const n = history.length;
     if (!n) return;
     const c = history[n - 1];
-
     document.getElementById('liveCount').textContent = n;
     document.getElementById('stS').textContent = history[0].open.toFixed(2);
     document.getElementById('stN').textContent = c.close.toFixed(2);
-
     let allHigh = -Infinity, allLow = Infinity;
     for (const h of history) { if (h.high > allHigh) allHigh = h.high; if (h.low < allLow) allLow = h.low; }
     document.getElementById('stH').textContent = allHigh.toFixed(2);
     document.getElementById('stL').textContent = allLow.toFixed(2);
-
     const ret = ((c.close - history[0].open) / history[0].open * 100).toFixed(2);
     const retEl = document.getElementById('stRt');
     retEl.textContent = (ret >= 0 ? '+' : '') + ret + '%';
     retEl.className = 'stat-value ' + (ret >= 0 ? 'up' : 'down');
-
     const total = Object.values(regimeCounts).reduce((s, v) => s + v, 0);
     REGIME_NAMES.forEach((r) => {
-      document.getElementById('pct-' + r).textContent = (total > 0 ? (regimeCounts[r] / total * 100).toFixed(0) : 0) + '%';
-      const ri = document.getElementById('ri-' + r);
-      ri.style.borderLeft = c.regime === r ? '2px solid ' + REGIMES[r].color : '2px solid transparent';
+      const pctEl = document.getElementById('pct-' + r);
+      const riEl = document.getElementById('ri-' + r);
+      if (pctEl) pctEl.textContent = (total > 0 ? ((regimeCounts[r] || 0) / total * 100).toFixed(0) : 0) + '%';
+      if (riEl) riEl.style.borderLeft = c.regime === r ? '2px solid ' + REGIMES[r].color : '2px solid transparent';
     });
   }
 
@@ -550,7 +526,8 @@ export class UIEngine {
     for (let i = 1; i <= n; i++) {
       if (i === n || history[i].regime !== history[segStart].regime) {
         const w = (i - segStart) / n * 100;
-        html += `<div style="width:${w}%;height:100%;background:${REGIMES[history[segStart].regime].color}" title="${history[segStart].regime} (${Math.round(w)}%)"></div>`;
+        const color = REGIMES[history[segStart].regime]?.color || '#4a6070';
+        html += `<div style="width:${w}%;height:100%;background:${color}" title="${history[segStart].regime} (${Math.round(w)}%)"></div>`;
         segStart = i;
       }
     }
@@ -560,7 +537,6 @@ export class UIEngine {
   updatePerformance(metrics, trading) {
     const uPnl = trading.positions.reduce((s, p) => s + p.unrealizedPnl, 0);
     const rPnl = trading.closedTrades.reduce((s, t) => s + t.pnl, 0);
-
     document.getElementById('pmBal').textContent = trading.balance.toFixed(2);
     document.getElementById('pmEq').textContent = trading.equity.toFixed(2);
     this._setPnl('pmUPnl', uPnl);
@@ -568,6 +544,7 @@ export class UIEngine {
     document.getElementById('pmWR').textContent = (metrics.winRate * 100).toFixed(1) + '%';
     document.getElementById('pmPF').textContent = metrics.profitFactor.toFixed(2);
     document.getElementById('pmSh').textContent = metrics.sharpe.toFixed(2);
+    document.getElementById('pmSortino').textContent = (metrics.sortino || 0).toFixed(2);
     document.getElementById('pmDD').textContent = (metrics.maxDrawdown * 100).toFixed(1) + '%';
     document.getElementById('pmExp').textContent = metrics.expectancy.toFixed(2);
     document.getElementById('pmKe').textContent = (metrics.kelly * 100).toFixed(1) + '%';
@@ -575,12 +552,48 @@ export class UIEngine {
     document.getElementById('pmMCL').textContent = metrics.maxConsecLoss;
     document.getElementById('pmExpo').textContent = (metrics.exposure * 100).toFixed(1) + '%';
     document.getElementById('pmFees').textContent = metrics.totalFees.toFixed(2);
+    document.getElementById('pmCAGR').textContent = (metrics.cagr * 100).toFixed(2) + '%';
+    // Risk metrics
+    document.getElementById('pmVaR95').textContent = (metrics.var95 || 0).toFixed(2) + '%';
+    document.getElementById('pmCVaR').textContent = (metrics.cvar95 || 0).toFixed(2) + '%';
+    document.getElementById('pmOmega').textContent = (metrics.omega || 0).toFixed(2);
+    document.getElementById('pmMAR').textContent = (metrics.mar || 0).toFixed(3);
+    document.getElementById('pmCalmar').textContent = (metrics.calmar || 0).toFixed(3);
+    document.getElementById('pmTreynor').textContent = (metrics.treynor || 0).toFixed(3);
+    // Trade breakdown
+    this._updateTradeBreakdown(trading.closedTrades);
   }
 
   _setPnl(id, val) {
     const el = document.getElementById(id);
     el.textContent = val.toFixed(2);
     el.className = 'stat-value sm ' + (val >= 0 ? 'up' : 'down');
+  }
+
+  updateBenchmark(metrics, bm) {
+    if (!bm) return;
+    const bmReturn = document.getElementById('bmReturn');
+    const bmSharpe = document.getElementById('bmSharpe');
+    const bmDD = document.getElementById('bmDD');
+    const bmAlpha = document.getElementById('bmAlpha');
+    if (bmReturn) { bmReturn.textContent = (bm.totalReturn * 100).toFixed(2) + '%'; bmReturn.className = 'stat-value sm ' + (bm.totalReturn >= 0 ? 'up' : 'down'); }
+    if (bmSharpe) bmSharpe.textContent = bm.sharpe.toFixed(3);
+    if (bmDD) bmDD.textContent = (bm.maxDrawdown * 100).toFixed(1) + '%';
+    if (bmAlpha) { const alpha = metrics.totalReturn - bm.totalReturn; bmAlpha.textContent = (alpha * 100).toFixed(2) + '%'; bmAlpha.className = 'stat-value sm ' + (alpha >= 0 ? 'up' : 'down'); }
+  }
+
+  _updateTradeBreakdown(trades) {
+    const container = document.getElementById('tradeBreakdown');
+    if (!container || trades.length === 0) return;
+    const last20 = trades.slice(-20);
+    let html = '<table style="width:100%;font-size:9px;border-collapse:collapse"><thead><tr><th>#</th><th>Dir</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Bars</th><th>Reason</th></tr></thead><tbody>';
+    for (const t of last20) {
+      const cls = t.pnl >= 0 ? 'up' : 'down';
+      html += `<tr><td>${t.id}</td><td style="color:${t.direction === 'long' ? 'var(--green)' : 'var(--red)'}">${t.direction.toUpperCase()}</td><td>${t.entryPrice.toFixed(2)}</td><td>${t.exitPrice.toFixed(2)}</td><td class="${cls}">${t.pnl.toFixed(2)}</td><td>${t.exitBar - t.entryBar}</td><td style="color:var(--muted)">${t.reason}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    if (trades.length > 20) html += `<div style="font-size:9px;color:var(--muted);margin-top:4px">Showing last 20 of ${trades.length} trades</div>`;
+    container.innerHTML = html;
   }
 
   updatePositions(positions, onClose) {
@@ -594,7 +607,6 @@ export class UIEngine {
     const list = document.getElementById('posList');
     list.innerHTML = html;
     document.getElementById('posCount').textContent = '(' + positions.length + ')';
-
     list.querySelectorAll('.pos-close-btn').forEach((btn) => {
       btn.addEventListener('click', () => onClose(+btn.dataset.id));
     });
@@ -616,7 +628,6 @@ export class UIEngine {
   updateChart(history, strategyIndicators) {
     if (!this.chart) return;
     this.chart.setData(history);
-
     if (strategyIndicators) {
       const overlays = {};
       for (const name in strategyIndicators) {
@@ -627,7 +638,6 @@ export class UIEngine {
       this.chart.setIndicatorOverlays(overlays);
       this._updateIndicatorLegend(overlays);
     }
-
     this.chart.autoScroll();
     this.chart.draw();
   }
@@ -669,14 +679,12 @@ export class UIEngine {
     el.style.color = msg && !msg.startsWith('OK') ? '' : 'var(--green)';
   }
 
-  // ─── Monte Carlo Results ───
+  // ─── MC Results with histogram + help texts ───
 
-  renderMCResults(summary) {
+  renderMCResults(summary, runs) {
     if (!summary) { document.getElementById('mcResults').innerHTML = ''; return; }
-
     const row = (label, obj) =>
       `<tr><td>${label}</td><td>${obj.mean.toFixed(2)}</td><td>${obj.median.toFixed(2)}</td><td>${obj.min.toFixed(2)}</td><td>${obj.max.toFixed(2)}</td></tr>`;
-
     let html = '<table class="mc-table"><thead><tr><th>Metric</th><th>Mean</th><th>Median</th><th>Min</th><th>Max</th></tr></thead><tbody>';
     html += row('Return %', summary.returns);
     html += row('Sharpe', summary.sharpe);
@@ -689,10 +697,54 @@ export class UIEngine {
     html += `<tr><td>Stability</td><td colspan="4">${summary.stabilityScore.toFixed(3)}</td></tr>`;
     html += '</tbody></table>';
     html += `<div style="margin-top:6px;font-size:10px;color:var(--muted)">Positive: <span style="color:var(--green)">${Math.round(summary.positiveRate * 100)}% of ${summary.totalRuns} runs</span></div>`;
-
+    if (runs && runs.length > 0) html += this._renderHistogram(runs.map((r) => r.totalReturn * 100), 'Return %');
+    html += this._renderMCVerdict(summary);
     document.getElementById('mcResults').innerHTML = html;
     document.getElementById('btnMcExportCsv').disabled = false;
     document.getElementById('btnMcExportJson').disabled = false;
+  }
+
+  _renderHistogram(values, label) {
+    if (values.length === 0) return '';
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const bucketCount = Math.min(10, Math.ceil(Math.sqrt(values.length)));
+    const bucketSize = range / bucketCount;
+    const buckets = new Array(bucketCount).fill(0);
+    for (const v of values) { const idx = Math.min(bucketCount - 1, Math.floor((v - min) / bucketSize)); buckets[idx]++; }
+    const maxCount = Math.max(...buckets);
+    let html = `<div class="mc-histogram"><div style="font-size:9px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">${label} Distribution</div>`;
+    for (let i = 0; i < bucketCount; i++) {
+      const lo = min + i * bucketSize;
+      const pct = maxCount > 0 ? (buckets[i] / maxCount * 100) : 0;
+      const color = lo >= 0 ? 'var(--green)' : 'var(--red)';
+      html += `<div class="mc-bar-row"><span class="mc-bar-label">${lo.toFixed(1)}</span><div style="flex:1;background:var(--bg);height:12px;border:1px solid var(--border)"><div class="mc-bar-fill" style="width:${pct}%;background:${color}"></div></div><span class="mc-bar-count">${buckets[i]}</span></div>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
+  _renderMCVerdict(summary) {
+    const posRate = summary.positiveRate;
+    const meanReturn = summary.returns.mean;
+    const meanSharpe = summary.sharpe.mean;
+    let verdictClass, verdictText, details;
+    if (posRate >= 0.7 && meanReturn > 0 && meanSharpe > 0.5) {
+      verdictClass = 'good'; verdictText = 'STRONG — Strategy shows robust performance';
+      details = `${(posRate * 100).toFixed(0)}% of runs are profitable with mean return of ${meanReturn.toFixed(1)}%. Sharpe of ${meanSharpe.toFixed(2)} indicates consistent risk-adjusted returns.`;
+    } else if (posRate >= 0.5 && meanReturn > -5) {
+      verdictClass = 'ok'; verdictText = 'MODERATE — Strategy shows mixed results';
+      details = `${(posRate * 100).toFixed(0)}% of runs are profitable. Results are inconsistent — consider parameter tuning or adding filters.`;
+    } else {
+      verdictClass = 'bad'; verdictText = 'WEAK — Strategy underperforms';
+      details = `Only ${(posRate * 100).toFixed(0)}% of runs are profitable with mean return of ${meanReturn.toFixed(1)}%. Consider fundamental strategy changes.`;
+    }
+    const stability = summary.stabilityScore;
+    if (stability > 1) details += ' Stability score above 1.0 suggests reliable performance.';
+    else if (stability > 0) details += ' Moderate stability — results vary across conditions.';
+    else details += ' Low stability — high variance across different market conditions.';
+    return `<div class="mc-help"><div class="verdict ${verdictClass}">${verdictText}</div><div>${details}</div></div>`;
   }
 
   setMCProgress(current, total) {
@@ -705,16 +757,82 @@ export class UIEngine {
     text.textContent = `${current}/${total}`;
   }
 
-  // ─── Reset ───
+  // ─── Heatmap ───
+
+  drawHeatmap(heatmap) {
+    const area = document.getElementById('heatmapArea');
+    const canvas = document.getElementById('heatmapCanvas');
+    if (!area || !canvas) return;
+    area.style.display = 'block';
+    const rect = area.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const { xVals, yVals, grid, paramX, paramY, metric } = heatmap;
+    const pad = 50;
+    let minVal = Infinity, maxVal = -Infinity;
+    for (const row of grid) for (const v of row) { if (v !== null) { if (v < minVal) minVal = v; if (v > maxVal) maxVal = v; } }
+    const range = maxVal - minVal || 1;
+    ctx.clearRect(0, 0, W, H);
+    const cellW = (W - pad * 2) / xVals.length;
+    const cellH = (H - pad * 2) / yVals.length;
+    for (let yi = 0; yi < yVals.length; yi++) {
+      for (let xi = 0; xi < xVals.length; xi++) {
+        const v = grid[yi][xi];
+        if (v === null) continue;
+        const ratio = (v - minVal) / range;
+        const r = Math.round(252 * (1 - ratio)), g = Math.round(222 * ratio), b = Math.round(50 + 80 * ratio);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(pad + xi * cellW, pad + yi * cellH, cellW - 1, cellH - 1);
+        ctx.fillStyle = ratio > 0.5 ? '#000' : '#fff';
+        ctx.font = '8px "IBM Plex Mono"'; ctx.textAlign = 'center';
+        ctx.fillText(v.toFixed(2), pad + xi * cellW + cellW / 2, pad + yi * cellH + cellH / 2 + 3);
+      }
+    }
+    ctx.fillStyle = '#4a6070'; ctx.font = '9px "IBM Plex Mono"'; ctx.textAlign = 'center';
+    for (let xi = 0; xi < xVals.length; xi++) ctx.fillText(xVals[xi].toFixed(1), pad + xi * cellW + cellW / 2, H - 5);
+    ctx.textAlign = 'right';
+    for (let yi = 0; yi < yVals.length; yi++) ctx.fillText(yVals[yi].toFixed(1), pad - 4, pad + yi * cellH + cellH / 2 + 3);
+    ctx.fillStyle = '#8b949e'; ctx.font = '10px "IBM Plex Mono"'; ctx.textAlign = 'center';
+    ctx.fillText(`${metric} — ${paramX} vs ${paramY}`, W / 2, 14);
+    ctx.fillText(paramX, W / 2, H - 16);
+    ctx.save(); ctx.translate(12, H / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(paramY, 0, 0); ctx.restore();
+    document.getElementById('heatmapLegend').textContent = `${metric}: ${minVal.toFixed(2)} → ${maxVal.toFixed(2)}`;
+  }
+
+  // ─── Walk-Forward Results ───
+
+  renderWalkForwardResults(result) {
+    if (!result || !result.summary) return;
+    const s = result.summary;
+    let html = `<div style="font-size:10px"><div class="stats-grid" style="margin-bottom:8px">
+      <div class="stat"><div class="stat-label">Windows</div><div class="stat-value sm neu">${s.totalWindows}</div></div>
+      <div class="stat"><div class="stat-label">OOS +Rate</div><div class="stat-value sm ${s.oosPositiveRate >= 0.5 ? 'up' : 'down'}">${(s.oosPositiveRate * 100).toFixed(0)}%</div></div>
+      <div class="stat"><div class="stat-label">Avg OOS Ret</div><div class="stat-value sm ${s.avgOosReturn >= 0 ? 'up' : 'down'}">${s.avgOosReturn.toFixed(2)}%</div></div>
+      <div class="stat"><div class="stat-label">Consistency</div><div class="stat-value sm ${s.consistency === 'Good' ? 'up' : s.consistency === 'Fair' ? 'neu' : 'down'}">${s.consistency}</div></div>
+    </div>`;
+    if (result.windows) {
+      html += '<div style="max-height:150px;overflow-y:auto"><table style="width:100%;font-size:9px;border-collapse:collapse"><thead><tr><th>#</th><th>IS Ret%</th><th>OOS Ret%</th><th>WF Eff</th></tr></thead><tbody>';
+      for (const w of result.windows) {
+        const effCls = w.walkForwardEfficiency > 0.5 ? 'up' : w.walkForwardEfficiency > 0 ? 'neu' : 'down';
+        html += `<tr><td>${w.windowIdx}</td><td class="${w.isReturn >= 0 ? 'up' : 'down'}">${(w.isReturn * 100).toFixed(1)}</td><td class="${w.oosReturn >= 0 ? 'up' : 'down'}">${(w.oosReturn * 100).toFixed(1)}</td><td class="${effCls}">${w.walkForwardEfficiency.toFixed(2)}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+    document.getElementById('wfResults').innerHTML = html;
+  }
 
   reset() {
     this._lastTradeIdx = 0;
     document.getElementById('liveCount').textContent = '0';
     ['tkP', 'tkC', 'tkH', 'tkL', 'tkV', 'tkR', 'tkEq', 'stS', 'stN', 'stH', 'stL', 'stDD', 'stRt'].forEach((id) => {
-      document.getElementById(id).textContent = '—';
+      const el = document.getElementById(id); if (el) el.textContent = '—';
     });
-    ['pmBal', 'pmEq', 'pmUPnl', 'pmRPnl', 'pmWR', 'pmPF', 'pmSh', 'pmDD', 'pmExp', 'pmKe', 'pmAvgR', 'pmMCL', 'pmExpo', 'pmFees'].forEach((id) => {
-      document.getElementById(id).textContent = '—';
+    ['pmBal', 'pmEq', 'pmUPnl', 'pmRPnl', 'pmWR', 'pmPF', 'pmSh', 'pmSortino', 'pmDD', 'pmExp', 'pmKe', 'pmAvgR', 'pmMCL', 'pmExpo', 'pmFees', 'pmCAGR',
+     'pmVaR95', 'pmCVaR', 'pmOmega', 'pmMAR', 'pmCalmar', 'pmTreynor',
+     'bmReturn', 'bmSharpe', 'bmDD', 'bmAlpha'].forEach((id) => {
+      const el = document.getElementById(id); if (el) el.textContent = '—';
     });
     document.getElementById('tlBar').innerHTML = '';
     document.getElementById('indLegend').innerHTML = '';
@@ -724,8 +842,12 @@ export class UIEngine {
     document.getElementById('tradeCount').textContent = '(0)';
     document.getElementById('btnExport').disabled = true;
     document.getElementById('btnExportTrades').disabled = true;
+    document.getElementById('btnReport').disabled = true;
     this.showEquityArea(false);
+    const heatmapArea = document.getElementById('heatmapArea');
+    if (heatmapArea) heatmapArea.style.display = 'none';
     document.getElementById('mcResults').innerHTML = '';
+    const tb = document.getElementById('tradeBreakdown'); if (tb) tb.innerHTML = '';
     if (this.chart) { this.chart.data = []; this.chart.markers = []; this.chart.indicatorOverlays = {}; this.chart.draw(); }
     if (this.eqChart) { this.eqChart.data = []; this.eqChart.overlays = []; this.eqChart.draw(); }
   }

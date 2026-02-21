@@ -27,6 +27,7 @@
       <div class="tick-item"><span class="tick-label">EQUITY</span> <span class="tick-val" id="tkEq">—</span></div>
     </div>
     <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" id="btnHelp" title="Show tutorial">? HELP</button>
       <button class="btn btn-green" id="btnStart">&#9654; START</button>
       <button class="btn btn-yellow" id="btnPause" disabled>&#9208; PAUSE</button>
       <button class="btn btn-red" id="btnStop" disabled>&#9632; STOP</button>
@@ -37,66 +38,242 @@
 
   <!-- LEFT SIDEBAR -->
   <aside class="sidebar" id="sidebarLeft">
-    <div class="panel">
-      <div class="panel-title">Live Session</div>
-      <div class="live-counter">
-        <span class="lc-label">Kynttilät tallennettu</span>
-        <span class="lc-val" id="liveCount">0</span>
+    <!-- Tab navigation for left sidebar -->
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" data-panel="panelLiveSession">Live</button>
+      <button class="sidebar-tab" data-panel="panelDataSource">Data</button>
+      <button class="sidebar-tab" data-panel="panelOptimizer">Optimizer</button>
+      <button class="sidebar-tab" data-panel="panelAnalysis">Analysis</button>
+    </div>
+
+    <!-- Live Session Tab -->
+    <div class="sidebar-panel active" id="panelLiveSession">
+      <div class="panel">
+        <div class="panel-title">Live Session</div>
+        <div class="live-counter">
+          <span class="lc-label">Candles saved</span>
+          <span class="lc-val" id="liveCount">0</span>
+        </div>
+        <div class="panel-title" style="margin-bottom:6px">Speed</div>
+        <div class="speed-grid" id="speedGrid">
+          <div class="speed-btn" data-ms="2000">0.5×</div>
+          <div class="speed-btn active" data-ms="800">1×</div>
+          <div class="speed-btn" data-ms="250">3×</div>
+          <div class="speed-btn" data-ms="60">15×</div>
+        </div>
       </div>
-      <div class="panel-title" style="margin-bottom:6px">Nopeus</div>
-      <div class="speed-grid" id="speedGrid">
-        <div class="speed-btn" data-ms="2000">0.5×</div>
-        <div class="speed-btn active" data-ms="800">1×</div>
-        <div class="speed-btn" data-ms="250">3×</div>
-        <div class="speed-btn" data-ms="60">15×</div>
+
+      <div class="panel">
+        <div class="panel-title">Parameters</div>
+        <div class="control">
+          <label title="Start price for the synthetic market.">Start Price <span id="lbS">10 000</span></label>
+          <input type="range" id="rS" min="100" max="100000" step="100" value="10000">
+        </div>
+        <div class="control">
+          <label title="Base volatility (%). Defines candle price movement magnitude.">Volatility <span id="lbV">1.5%</span></label>
+          <input type="range" id="rV" min="0.3" max="5" step="0.1" value="1.5">
+        </div>
+        <div class="control">
+          <label title="Trend bias adds directional weight to every candle.">Trend Bias <span id="lbB">0.00%</span></label>
+          <input type="range" id="rB" min="-0.5" max="0.5" step="0.01" value="0">
+        </div>
+        <div class="control">
+          <label title="Regime switch probability (%). Low = longer regimes, high = frequent switches.">Regime Switch <span id="lbSw">8%</span></label>
+          <input type="range" id="rSw" min="1" max="30" step="1" value="8">
+        </div>
+        <div class="control">
+          <label title="RNG seed. Same seed = identical price path.">Seed <span id="lbSd">42</span></label>
+          <input type="range" id="rSd" min="1" max="99999" step="1" value="42">
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Regimes</div>
+        <div class="regime-list">
+          <div class="regime-item" id="ri-bull">     <div class="regime-dot" style="background:#26de81"></div><span class="regime-name">Bull Trend</span>  <span class="regime-pct" id="pct-bull">—</span></div>
+          <div class="regime-item" id="ri-bear">     <div class="regime-dot" style="background:#fc5c65"></div><span class="regime-name">Bear Trend</span>  <span class="regime-pct" id="pct-bear">—</span></div>
+          <div class="regime-item" id="ri-sideways"> <div class="regime-dot" style="background:#45aaf2"></div><span class="regime-name">Sideways</span>     <span class="regime-pct" id="pct-sideways">—</span></div>
+          <div class="regime-item" id="ri-swing">    <div class="regime-dot" style="background:#fed330"></div><span class="regime-name">Swing</span>        <span class="regime-pct" id="pct-swing">—</span></div>
+          <div class="regime-item" id="ri-breakout"> <div class="regime-dot" style="background:#fd9644"></div><span class="regime-name">Breakout</span>     <span class="regime-pct" id="pct-breakout">—</span></div>
+          <div class="regime-item" id="ri-crash">    <div class="regime-dot" style="background:#a55eea"></div><span class="regime-name">Flash Crash</span> <span class="regime-pct" id="pct-crash">—</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Statistics</div>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-label">Start</div>       <div class="stat-value neu" id="stS">—</div></div>
+          <div class="stat"><div class="stat-label">Current</div>     <div class="stat-value" id="stN">—</div></div>
+          <div class="stat"><div class="stat-label">High</div>        <div class="stat-value up" id="stH">—</div></div>
+          <div class="stat"><div class="stat-label">Low</div>         <div class="stat-value down" id="stL">—</div></div>
+          <div class="stat"><div class="stat-label">Max Drawdown</div><div class="stat-value down" id="stDD">—</div></div>
+          <div class="stat"><div class="stat-label">Return</div>      <div class="stat-value" id="stRt">—</div></div>
+        </div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-title">Parametrit</div>
-      <div class="control">
-        <label title="Synteettisen markkinan aloitushinta. Tämä on ensimmäisen kynttilän hinta josta simulaatio alkaa.">Aloitushinta <span id="lbS">10 000</span></label>
-        <input type="range" id="rS" min="100" max="100000" step="100" value="10000">
+    <!-- Data Source Tab -->
+    <div class="sidebar-panel" id="panelDataSource">
+      <div class="panel">
+        <div class="panel-title">Real Market Data</div>
+        <div class="input-group">
+          <label>Data Source</label>
+          <select id="dataSource">
+            <option value="synthetic">Synthetic (default)</option>
+            <option value="binance">Binance</option>
+            <option value="coingecko">CoinGecko</option>
+          </select>
+        </div>
+        <div id="binanceOptions" style="display:none">
+          <div class="input-group">
+            <label>Symbol</label>
+            <select id="dataSymbol">
+              <option value="BTCUSDT">BTC/USDT</option>
+              <option value="ETHUSDT">ETH/USDT</option>
+              <option value="SOLUSDT">SOL/USDT</option>
+              <option value="BNBUSDT">BNB/USDT</option>
+              <option value="XRPUSDT">XRP/USDT</option>
+              <option value="ADAUSDT">ADA/USDT</option>
+              <option value="DOGEUSDT">DOGE/USDT</option>
+              <option value="DOTUSDT">DOT/USDT</option>
+              <option value="AVAXUSDT">AVAX/USDT</option>
+              <option value="LINKUSDT">LINK/USDT</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Interval</label>
+            <select id="dataInterval">
+              <option value="1m">1 minute</option>
+              <option value="5m">5 minutes</option>
+              <option value="15m">15 minutes</option>
+              <option value="1h" selected>1 hour</option>
+              <option value="4h">4 hours</option>
+              <option value="1d">1 day</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Candles</label>
+            <input type="number" id="dataLimit" value="500" min="50" max="1000">
+          </div>
+        </div>
+        <div id="coingeckoOptions" style="display:none">
+          <div class="input-group">
+            <label>Coin</label>
+            <select id="dataCoin">
+              <option value="bitcoin">Bitcoin</option>
+              <option value="ethereum">Ethereum</option>
+              <option value="solana">Solana</option>
+              <option value="binancecoin">BNB</option>
+              <option value="ripple">XRP</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Days</label>
+            <select id="dataDays">
+              <option value="7">7 days</option>
+              <option value="30">30 days</option>
+              <option value="90" selected>90 days</option>
+              <option value="180">180 days</option>
+              <option value="365">365 days</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-blue btn-sm" id="btnFetchData" style="width:100%;margin-top:8px">Fetch Data</button>
+        <div class="data-status" id="dataStatus" style="font-size:10px;color:var(--muted);margin-top:4px"></div>
       </div>
-      <div class="control">
-        <label title="Perusvolatiliteetti (%). Määrittää kynttilöiden hintavaihtelun suuruuden. Matala arvo (0.3%) tuottaa pieniä kynttilöitä, korkea arvo (5%) suuria.">Volatiliteetti <span id="lbV">1.5%</span></label>
-        <input type="range" id="rV" min="0.3" max="5" step="0.1" value="1.5">
-      </div>
-      <div class="control">
-        <label title="Trendi-bias lisää jokaiseen kynttilään suuntaisen painotuksen. Positiivinen ylös, negatiivinen alas.">Trendi-bias <span id="lbB">0.00%</span></label>
-        <input type="range" id="rB" min="-0.5" max="0.5" step="0.01" value="0">
-      </div>
-      <div class="control">
-        <label title="Regiimin vaihtuvuustodennäköisyys (%). Matala = pitkät regiimit, korkea = tiheät vaihdot.">Regiimin vaihtuvuus <span id="lbSw">8%</span></label>
-        <input type="range" id="rSw" min="1" max="30" step="1" value="8">
-      </div>
-      <div class="control">
-        <label title="RNG-siemenluku (seed). Sama seed = identtinen hintapolku. Käytetään myös Monte Carlo -ajojen pohjana.">Seed <span id="lbSd">42</span></label>
-        <input type="range" id="rSd" min="1" max="99999" step="1" value="42">
+
+      <div class="panel">
+        <div class="panel-title">Data Scrambling</div>
+        <p style="font-size:10px;color:var(--muted);margin-bottom:8px">Shuffle price movements while preserving start and end prices. Useful for testing strategy robustness.</p>
+        <div class="input-group">
+          <label>Scramble Seed</label>
+          <input type="number" id="scrambleSeed" value="1" min="1" max="99999">
+        </div>
+        <button class="btn btn-orange btn-sm" id="btnScramble" style="width:100%" disabled>Scramble Loaded Data</button>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-title">Regiiimit</div>
-      <div class="regime-list">
-        <div class="regime-item" id="ri-bull">     <div class="regime-dot" style="background:#26de81"></div><span class="regime-name">Bull Trend</span>  <span class="regime-pct" id="pct-bull">—</span></div>
-        <div class="regime-item" id="ri-bear">     <div class="regime-dot" style="background:#fc5c65"></div><span class="regime-name">Bear Trend</span>  <span class="regime-pct" id="pct-bear">—</span></div>
-        <div class="regime-item" id="ri-sideways"> <div class="regime-dot" style="background:#45aaf2"></div><span class="regime-name">Sideways</span>     <span class="regime-pct" id="pct-sideways">—</span></div>
-        <div class="regime-item" id="ri-swing">    <div class="regime-dot" style="background:#fed330"></div><span class="regime-name">Swing</span>        <span class="regime-pct" id="pct-swing">—</span></div>
-        <div class="regime-item" id="ri-breakout"> <div class="regime-dot" style="background:#fd9644"></div><span class="regime-name">Breakout</span>     <span class="regime-pct" id="pct-breakout">—</span></div>
-        <div class="regime-item" id="ri-crash">    <div class="regime-dot" style="background:#a55eea"></div><span class="regime-name">Flash Crash</span> <span class="regime-pct" id="pct-crash">—</span></div>
+    <!-- Optimizer Tab -->
+    <div class="sidebar-panel" id="panelOptimizer">
+      <div class="panel">
+        <div class="panel-title">Parameter Optimizer</div>
+        <div class="input-group">
+          <label>Optimization Mode</label>
+          <select id="optMode">
+            <option value="grid">Grid Search</option>
+            <option value="genetic">Genetic Algorithm</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Objective</label>
+          <select id="optObjective">
+            <option value="compositeScore">Composite Score</option>
+            <option value="sharpe">Sharpe Ratio</option>
+            <option value="totalReturn">Total Return</option>
+            <option value="profitFactor">Profit Factor</option>
+            <option value="calmar">Calmar Ratio</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Candles per Run</label>
+          <input type="number" id="optCandles" value="500" min="50" max="5000" step="50">
+        </div>
+        <div id="geneticOptions" style="display:none">
+          <div class="input-row">
+            <div class="input-group"><label>Population</label><input type="number" id="optPopulation" value="20" min="5" max="100"></div>
+            <div class="input-group"><label>Generations</label><input type="number" id="optGenerations" value="10" min="2" max="50"></div>
+          </div>
+          <div class="input-group"><label>Mutation Rate</label><input type="number" id="optMutation" value="0.2" min="0.01" max="1" step="0.05"></div>
+        </div>
+        <div class="section-label" style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--blue);margin:8px 0 4px">Parameter Ranges</div>
+        <div id="optParamRanges" style="font-size:10px;color:var(--muted)">Load a strategy with params to configure ranges</div>
+        <button class="btn btn-purple btn-sm" id="btnOptimize" style="width:100%;margin-top:8px" disabled>Run Optimizer</button>
+        <div id="optProgress" style="display:none;margin-top:4px">
+          <div class="mc-progress-bar"><div class="mc-progress-fill" id="optProgressFill"></div></div>
+          <span id="optProgressText" style="font-size:9px;color:var(--muted)"></span>
+        </div>
+        <div id="optResults" style="margin-top:8px"></div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-title">Statistiikka</div>
-      <div class="stats-grid">
-        <div class="stat"><div class="stat-label">Aloitus</div>     <div class="stat-value neu" id="stS">—</div></div>
-        <div class="stat"><div class="stat-label">Nykyinen</div>    <div class="stat-value" id="stN">—</div></div>
-        <div class="stat"><div class="stat-label">High</div>        <div class="stat-value up" id="stH">—</div></div>
-        <div class="stat"><div class="stat-label">Low</div>         <div class="stat-value down" id="stL">—</div></div>
-        <div class="stat"><div class="stat-label">Max Drawdown</div><div class="stat-value down" id="stDD">—</div></div>
-        <div class="stat"><div class="stat-label">Tuotto</div>      <div class="stat-value" id="stRt">—</div></div>
+    <!-- Analysis Tab -->
+    <div class="sidebar-panel" id="panelAnalysis">
+      <div class="panel">
+        <div class="panel-title">Walk-Forward Analysis</div>
+        <div class="input-row">
+          <div class="input-group"><label>Total Candles</label><input type="number" id="wfCandles" value="2000" min="200" max="10000" step="100"></div>
+          <div class="input-group"><label>Window Size</label><input type="number" id="wfWindow" value="500" min="50" max="5000" step="50"></div>
+        </div>
+        <div class="input-row">
+          <div class="input-group"><label>OOS Size</label><input type="number" id="wfOos" value="100" min="20" max="1000" step="10"></div>
+          <div class="input-group"><label>Step Size</label><input type="number" id="wfStep" value="100" min="10" max="500" step="10"></div>
+        </div>
+        <button class="btn btn-blue btn-sm" id="btnWalkForward" style="width:100%;margin-top:4px">Run Walk-Forward</button>
+        <div id="wfProgress" style="display:none;margin-top:4px">
+          <div class="mc-progress-bar"><div class="mc-progress-fill" id="wfProgressFill"></div></div>
+          <span id="wfProgressText" style="font-size:9px;color:var(--muted)"></span>
+        </div>
+        <div id="wfResults" style="margin-top:8px"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Saved Runs</div>
+        <div id="savedRuns" style="font-size:10px;color:var(--muted)">No saved runs</div>
+        <div style="display:flex;gap:4px;margin-top:8px">
+          <button class="btn btn-blue btn-sm" id="btnSaveRun" disabled>Save Current</button>
+          <button class="btn btn-ghost btn-sm" id="btnClearRuns">Clear All</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Indicator Plugins</div>
+        <div class="input-group">
+          <label>Add Indicator</label>
+          <select id="pluginIndicator">
+            <option value="">Select...</option>
+          </select>
+        </div>
+        <div id="activePlugins" style="margin-top:4px"></div>
       </div>
     </div>
   </aside>
@@ -104,7 +281,7 @@
   <!-- MAIN -->
   <main class="main" id="mainArea">
     <div class="chart-toolbar">
-      <span class="pair-badge">BTC/USDT</span>
+      <span class="pair-badge" id="pairBadge">BTC/USDT</span>
       <span class="live-badge" id="liveBadge">LIVE</span>
       <div class="ind-legend" id="indLegend"></div>
       <span class="chart-hint desktop-only">Scroll = pan · Ctrl+Scroll = zoom · Drag = pan</span>
@@ -114,7 +291,7 @@
       <canvas id="cc"></canvas>
       <div class="nc-flash" id="ncf"></div>
       <div class="tooltip-box" id="tooltip">
-        <div class="tt-row"><span class="tt-key">Aika</span>   <span class="tt-val" id="tta">—</span></div>
+        <div class="tt-row"><span class="tt-key">Bar</span>    <span class="tt-val" id="tta">—</span></div>
         <div class="tt-row"><span class="tt-key">Open</span>   <span class="tt-val" id="tto">—</span></div>
         <div class="tt-row"><span class="tt-key">High</span>   <span class="tt-val" id="tth">—</span></div>
         <div class="tt-row"><span class="tt-key">Low</span>    <span class="tt-val" id="ttl">—</span></div>
@@ -129,108 +306,130 @@
       <canvas id="eqc"></canvas>
     </div>
 
+    <!-- Heatmap Canvas -->
+    <div class="heatmap-area" id="heatmapArea" style="display:none">
+      <canvas id="heatmapCanvas"></canvas>
+      <div class="heatmap-legend" id="heatmapLegend"></div>
+    </div>
+
     <div class="timeline-area">
-      <div class="tl-label">Regiimi-aikajana</div>
+      <div class="tl-label">Regime Timeline</div>
       <div class="timeline-bar" id="tlBar"></div>
     </div>
 
     <div class="export-bar">
-      <span class="export-info" id="expInfo">Paina <strong>&#9654; START</strong> aloittaaksesi live-datan tallennuksen.</span>
+      <span class="export-info" id="expInfo">Press <strong>&#9654; START</strong> to begin live data recording.</span>
       <button class="btn btn-blue btn-sm" id="btnExportTrades" disabled>&#8595; TRADES CSV</button>
-      <button class="btn btn-blue" id="btnExport" disabled>&#8595; EXPORTOI DATA</button>
+      <button class="btn btn-blue btn-sm" id="btnReport" disabled>&#8595; REPORT</button>
+      <button class="btn btn-blue" id="btnExport" disabled>&#8595; EXPORT DATA</button>
     </div>
   </main>
 
   <!-- RIGHT SIDEBAR -->
   <aside class="sidebar-right" id="sidebarRight">
-    <div class="panel">
-      <div class="panel-title">Trading Mode</div>
-      <div class="input-row">
-        <div class="input-group">
-          <label>Mode</label>
-          <select id="tMode">
-            <option value="spot">Spot</option>
-            <option value="futures" selected>Futures (Isolated)</option>
-          </select>
-        </div>
-        <div class="input-group">
-          <label>Leverage</label>
-          <select id="tLev">
-            <option value="1">1×</option><option value="2">2×</option><option value="3">3×</option>
-            <option value="5">5×</option><option value="10" selected>10×</option><option value="20">20×</option>
-            <option value="25">25×</option><option value="40">40×</option>
-          </select>
-        </div>
-      </div>
-      <div class="input-row">
-        <div class="input-group"><label>Maker Fee %</label><input type="number" id="tMakerFee" value="0.02" step="0.001" min="0"></div>
-        <div class="input-group"><label>Taker Fee %</label><input type="number" id="tTakerFee" value="0.04" step="0.001" min="0"></div>
-      </div>
-      <div class="input-row">
-        <div class="input-group"><label>Slippage %</label><input type="number" id="tSlippage" value="0.05" step="0.01" min="0"></div>
-        <div class="input-group"><label>Maint. Rate %</label><input type="number" id="tMaintRate" value="0.5" step="0.1" min="0"></div>
-      </div>
-      <div class="input-row">
-        <div class="input-group"><label>Starting Balance</label><input type="number" id="tBalance" value="10000" step="100" min="100"></div>
-        <div class="input-group"><label>Position Sizing</label>
-          <select id="tSizeMode"><option value="fixed">Fixed Amount</option><option value="percent">% of Equity</option></select>
-        </div>
-      </div>
-      <div class="input-group"><label>Size Value</label><input type="number" id="tSizeVal" value="1000" step="100" min="1"></div>
-      <div class="input-row" style="margin-top:4px">
-        <div class="input-group"><label>Stop Loss %</label><input type="number" id="tSL" value="2" step="0.1" min="0"></div>
-        <div class="input-group"><label>Take Profit %</label><input type="number" id="tTP" value="4" step="0.1" min="0"></div>
-      </div>
-      <div class="input-group"><label>Trailing Stop %</label><input type="number" id="tTrail" value="0" step="0.1" min="0"></div>
-      <div class="input-group"><label>Partial Fill %</label><input type="number" id="tPartialFill" value="100" step="5" min="5" max="100"></div>
-      <div class="trade-btns" id="manualTradeBtns">
-        <button class="btn btn-green btn-sm" id="btnManualBuy">&#9650; BUY/LONG</button>
-        <button class="btn btn-red btn-sm" id="btnManualSell">&#9660; SELL/SHORT</button>
-      </div>
-      <div class="trade-blocked" id="tradeBlockedMsg">Manuaalinen kaupankäynti estetty strategian ollessa aktiivinen</div>
+    <!-- Tab navigation for right sidebar -->
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" data-panel="panelTradingTab">Trading</button>
+      <button class="sidebar-tab" data-panel="panelPerfTab">Performance</button>
+      <button class="sidebar-tab" data-panel="panelMonteCarloTab">Monte Carlo</button>
     </div>
 
-    <!-- Strategy Engine -->
-    <div class="panel panel-collapse open" id="panelStrategy">
-      <div class="panel-title">Strategy Engine</div>
-      <div class="panel-body" id="strategyBody">
-        <div class="toggle-row" style="margin-bottom:8px">
-          <span>Enable Strategy</span>
-          <label class="toggle"><input type="checkbox" id="tStratEnabled"><span class="toggle-slider"></span></label>
+    <!-- Trading Tab -->
+    <div class="sidebar-panel active" id="panelTradingTab">
+      <div class="panel">
+        <div class="panel-title">Trading Mode</div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>Mode</label>
+            <select id="tMode">
+              <option value="spot">Spot</option>
+              <option value="futures" selected>Futures (Isolated)</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Leverage</label>
+            <select id="tLev">
+              <option value="1">1×</option><option value="2">2×</option><option value="3">3×</option>
+              <option value="5">5×</option><option value="10" selected>10×</option><option value="20">20×</option>
+              <option value="25">25×</option><option value="40">40×</option>
+            </select>
+          </div>
         </div>
-        <div class="input-group">
-          <label>Select Strategy</label>
-          <select id="tStratSelect">
-            <option value="custom">Custom (paste code)</option>
-          </select>
+        <div class="input-row">
+          <div class="input-group"><label>Maker Fee %</label><input type="number" id="tMakerFee" value="0.02" step="0.001" min="0"></div>
+          <div class="input-group"><label>Taker Fee %</label><input type="number" id="tTakerFee" value="0.04" step="0.001" min="0"></div>
         </div>
-        <div id="stratParamsContainer"></div>
-        <div class="input-group" style="margin-top:8px">
-          <label>Strategy Code (JS)</label>
-          <textarea id="tStratCode" rows="6" placeholder="// Select a preset strategy or paste custom code"></textarea>
+        <div class="input-row">
+          <div class="input-group"><label>Slippage %</label><input type="number" id="tSlippage" value="0.05" step="0.01" min="0"></div>
+          <div class="input-group"><label>Maint. Rate %</label><input type="number" id="tMaintRate" value="0.5" step="0.1" min="0"></div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-blue btn-sm" id="btnLoadStrat">Load Strategy</button>
-          <label class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;cursor:pointer">
-            Upload File <input type="file" accept=".js,.txt" style="display:none" id="btnUploadStrat">
-          </label>
+        <div class="toggle-row" style="margin:6px 0">
+          <span>Market Impact Model</span>
+          <label class="toggle"><input type="checkbox" id="tMarketImpact" checked><span class="toggle-slider"></span></label>
         </div>
-        <div class="strat-error" id="stratError"></div>
+        <div class="input-row">
+          <div class="input-group"><label>Starting Balance</label><input type="number" id="tBalance" value="10000" step="100" min="100"></div>
+          <div class="input-group"><label>Position Sizing</label>
+            <select id="tSizeMode"><option value="fixed">Fixed Amount</option><option value="percent">% of Equity</option></select>
+          </div>
+        </div>
+        <div class="input-group"><label>Size Value</label><input type="number" id="tSizeVal" value="1000" step="100" min="1"></div>
+        <div class="input-row" style="margin-top:4px">
+          <div class="input-group"><label>Stop Loss %</label><input type="number" id="tSL" value="2" step="0.1" min="0"></div>
+          <div class="input-group"><label>Take Profit %</label><input type="number" id="tTP" value="4" step="0.1" min="0"></div>
+        </div>
+        <div class="input-group"><label>Trailing Stop %</label><input type="number" id="tTrail" value="0" step="0.1" min="0"></div>
+        <div class="input-group"><label>Partial Fill %</label><input type="number" id="tPartialFill" value="100" step="5" min="5" max="100"></div>
+        <div class="trade-btns" id="manualTradeBtns">
+          <button class="btn btn-green btn-sm" id="btnManualBuy">&#9650; BUY/LONG</button>
+          <button class="btn btn-red btn-sm" id="btnManualSell">&#9660; SELL/SHORT</button>
+        </div>
+        <div class="trade-blocked" id="tradeBlockedMsg">Manual trading disabled while strategy is active</div>
+      </div>
+
+      <!-- Strategy Engine -->
+      <div class="panel panel-collapse open" id="panelStrategy">
+        <div class="panel-title">Strategy Engine</div>
+        <div class="panel-body" id="strategyBody">
+          <div class="toggle-row" style="margin-bottom:8px">
+            <span>Enable Strategy</span>
+            <label class="toggle"><input type="checkbox" id="tStratEnabled"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="input-group">
+            <label>Select Strategy</label>
+            <select id="tStratSelect">
+              <option value="custom">Custom (paste code)</option>
+            </select>
+          </div>
+          <div id="stratParamsContainer"></div>
+          <div class="input-group" style="margin-top:8px">
+            <label>Strategy Code (JS)</label>
+            <textarea id="tStratCode" rows="6" placeholder="// Select a preset strategy or paste custom code"></textarea>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-blue btn-sm" id="btnLoadStrat">Load Strategy</button>
+            <label class="btn btn-ghost btn-sm" style="display:inline-flex;align-items:center;cursor:pointer">
+              Upload File <input type="file" accept=".js,.txt" style="display:none" id="btnUploadStrat">
+            </label>
+          </div>
+          <div class="strat-error" id="stratError"></div>
+        </div>
+      </div>
+
+      <!-- Positions -->
+      <div class="panel panel-collapse open" id="panelPositions">
+        <div class="panel-title">Open Positions <span id="posCount" style="color:var(--blue)">(0)</span></div>
+        <div class="panel-body" id="positionsBody">
+          <div class="pos-list" id="posList"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Positions -->
-    <div class="panel panel-collapse open" id="panelPositions">
-      <div class="panel-title">Open Positions <span id="posCount" style="color:var(--blue)">(0)</span></div>
-      <div class="panel-body" id="positionsBody">
-        <div class="pos-list" id="posList"></div>
-      </div>
-    </div>
-
-    <!-- Performance -->
-    <div class="panel panel-collapse open" id="panelPerformance">
-      <div class="panel-title">Performance</div>
-      <div class="panel-body" id="performanceBody">
+    <!-- Performance Tab -->
+    <div class="sidebar-panel" id="panelPerfTab">
+      <!-- Performance -->
+      <div class="panel" id="panelPerformance">
+        <div class="panel-title">Performance Metrics</div>
         <div class="stats-grid" id="perfGrid">
           <div class="stat"><div class="stat-label">Balance</div><div class="stat-value sm neu" id="pmBal">—</div></div>
           <div class="stat"><div class="stat-label">Equity</div><div class="stat-value sm neu" id="pmEq">—</div></div>
@@ -239,6 +438,7 @@
           <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-value sm" id="pmWR">—</div></div>
           <div class="stat"><div class="stat-label">Profit Factor</div><div class="stat-value sm" id="pmPF">—</div></div>
           <div class="stat"><div class="stat-label">Sharpe</div><div class="stat-value sm" id="pmSh">—</div></div>
+          <div class="stat"><div class="stat-label">Sortino</div><div class="stat-value sm" id="pmSortino">—</div></div>
           <div class="stat"><div class="stat-label">Max DD</div><div class="stat-value sm down" id="pmDD">—</div></div>
           <div class="stat"><div class="stat-label">Expectancy</div><div class="stat-value sm" id="pmExp">—</div></div>
           <div class="stat"><div class="stat-label">Kelly %</div><div class="stat-value sm" id="pmKe">—</div></div>
@@ -246,22 +446,65 @@
           <div class="stat"><div class="stat-label">Max Consec Loss</div><div class="stat-value sm down" id="pmMCL">—</div></div>
           <div class="stat"><div class="stat-label">Exposure %</div><div class="stat-value sm" id="pmExpo">—</div></div>
           <div class="stat"><div class="stat-label">Total Fees</div><div class="stat-value sm down" id="pmFees">—</div></div>
+          <div class="stat"><div class="stat-label">CAGR</div><div class="stat-value sm" id="pmCAGR">—</div></div>
+        </div>
+      </div>
+
+      <!-- Risk Metrics -->
+      <div class="panel panel-collapse" id="panelRisk">
+        <div class="panel-title">Risk Metrics</div>
+        <div class="panel-body">
+          <div class="stats-grid">
+            <div class="stat"><div class="stat-label">VaR 95%</div><div class="stat-value sm" id="pmVaR95">—</div></div>
+            <div class="stat"><div class="stat-label">CVaR 95%</div><div class="stat-value sm" id="pmCVaR">—</div></div>
+            <div class="stat"><div class="stat-label">Omega</div><div class="stat-value sm" id="pmOmega">—</div></div>
+            <div class="stat"><div class="stat-label">MAR</div><div class="stat-value sm" id="pmMAR">—</div></div>
+            <div class="stat"><div class="stat-label">Calmar</div><div class="stat-value sm" id="pmCalmar">—</div></div>
+            <div class="stat"><div class="stat-label">Treynor</div><div class="stat-value sm" id="pmTreynor">—</div></div>
+          </div>
+          <div class="help-text" style="margin-top:8px">
+            <div class="help-item"><strong>VaR 95%:</strong> Maximum expected daily loss with 95% confidence. <span class="badge-inline down">Below -3% = high risk</span></div>
+            <div class="help-item"><strong>CVaR:</strong> Average loss when VaR is exceeded (tail risk).</div>
+            <div class="help-item"><strong>Omega:</strong> Ratio of gains to losses. <span class="badge-inline up">Above 1.5 = strong</span></div>
+            <div class="help-item"><strong>MAR/Calmar:</strong> CAGR / Max Drawdown. <span class="badge-inline up">Above 1.0 = excellent</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Benchmark -->
+      <div class="panel panel-collapse" id="panelBenchmark">
+        <div class="panel-title">Benchmark: Buy & Hold</div>
+        <div class="panel-body">
+          <div class="stats-grid">
+            <div class="stat"><div class="stat-label">B&H Return</div><div class="stat-value sm" id="bmReturn">—</div></div>
+            <div class="stat"><div class="stat-label">B&H Sharpe</div><div class="stat-value sm" id="bmSharpe">—</div></div>
+            <div class="stat"><div class="stat-label">B&H Max DD</div><div class="stat-value sm" id="bmDD">—</div></div>
+            <div class="stat"><div class="stat-label">Alpha</div><div class="stat-value sm" id="bmAlpha">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trade Log -->
+      <div class="panel panel-collapse" id="panelTradeLog">
+        <div class="panel-title">Trade Log <span id="tradeCount" style="color:var(--blue)">(0)</span></div>
+        <div class="panel-body" id="tradeLogBody">
+          <div class="trade-log" id="tradeLog"></div>
+        </div>
+      </div>
+
+      <!-- Trade Breakdown -->
+      <div class="panel panel-collapse" id="panelTradeBreakdown">
+        <div class="panel-title">Trade Breakdown</div>
+        <div class="panel-body">
+          <div id="tradeBreakdown" style="max-height:300px;overflow-y:auto;font-size:10px"></div>
         </div>
       </div>
     </div>
 
-    <!-- Trade Log -->
-    <div class="panel panel-collapse" id="panelTradeLog">
-      <div class="panel-title">Trade Log <span id="tradeCount" style="color:var(--blue)">(0)</span></div>
-      <div class="panel-body" id="tradeLogBody">
-        <div class="trade-log" id="tradeLog"></div>
-      </div>
-    </div>
-
-    <!-- Monte Carlo -->
-    <div class="panel panel-collapse" id="panelMonteCarlo">
-      <div class="panel-title">Monte Carlo</div>
-      <div class="panel-body" id="monteCarloBody">
+    <!-- Monte Carlo Tab -->
+    <div class="sidebar-panel" id="panelMonteCarloTab">
+      <div class="panel" id="panelMonteCarlo">
+        <div class="panel-title">Monte Carlo</div>
         <div class="input-row">
           <div class="input-group"><label>Runs</label><input type="number" id="mcRuns" value="50" step="10" min="5" max="500"></div>
           <div class="input-group"><label>Candles/Run</label><input type="number" id="mcCandles" value="500" step="50" min="50" max="5000"></div>
@@ -337,23 +580,67 @@
 <!-- EXPORT MODAL -->
 <div class="modal-overlay" id="modal">
   <div class="modal">
-    <div class="modal-title">Exportoi markkinadata</div>
+    <div class="modal-title">Export Market Data</div>
     <div class="modal-sub" id="modalSub">—</div>
     <div class="export-opts">
       <div class="exp-opt sel" id="optXlsx" data-fmt="xlsx">
         <div class="exp-icon">&#128202;</div>
         <div class="exp-title">Excel (.xlsx)</div>
-        <div class="exp-desc">OHLCV-data + regiimitilastot kahdella välilehdellä.</div>
+        <div class="exp-desc">OHLCV data + regime stats in two sheets.</div>
       </div>
       <div class="exp-opt" id="optJson" data-fmt="json">
         <div class="exp-icon">{ }</div>
         <div class="exp-title">JSON</div>
-        <div class="exp-desc">Täydellinen raakadata ohjelmalliseen käyttöön.</div>
+        <div class="exp-desc">Full raw data for programmatic use.</div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" id="btnModalCancel">Peruuta</button>
-      <button class="btn btn-green" id="btnModalExport">&#8595; Lataa tiedosto</button>
+      <button class="btn btn-ghost" id="btnModalCancel">Cancel</button>
+      <button class="btn btn-green" id="btnModalExport">&#8595; Download</button>
+    </div>
+  </div>
+</div>
+
+<!-- TUTORIAL MODAL -->
+<div class="modal-overlay" id="tutorialModal">
+  <div class="modal" style="width:600px;max-height:80vh;overflow-y:auto">
+    <div class="modal-title">Getting Started</div>
+    <div class="tutorial-content" id="tutorialContent">
+      <div class="tutorial-step">
+        <h3 style="color:var(--green);margin-bottom:6px">1. Run a Simulation</h3>
+        <p>Click <strong>START</strong> to begin generating synthetic market data. Adjust <strong>volatility</strong>, <strong>trend bias</strong>, and <strong>seed</strong> in the left sidebar to change market conditions.</p>
+      </div>
+      <div class="tutorial-step">
+        <h3 style="color:var(--blue);margin-bottom:6px">2. Enable a Strategy</h3>
+        <p>Toggle <strong>Enable Strategy</strong> in the Trading tab. Select a preset strategy or paste custom code. Click <strong>Load Strategy</strong> to activate it.</p>
+      </div>
+      <div class="tutorial-step">
+        <h3 style="color:var(--purple);margin-bottom:6px">3. Monte Carlo Analysis</h3>
+        <p>Use the <strong>Monte Carlo</strong> tab to stress-test your strategy across many randomized market scenarios. Check <strong>Overlay Equity Curves</strong> to visualize all runs.</p>
+      </div>
+      <div class="tutorial-step">
+        <h3 style="color:var(--orange);margin-bottom:6px">4. Real Market Data</h3>
+        <p>Switch to the <strong>Data</strong> tab in the left sidebar. Select <strong>Binance</strong> or <strong>CoinGecko</strong> as data source to backtest on real crypto prices.</p>
+      </div>
+      <div class="tutorial-step">
+        <h3 style="color:var(--yellow);margin-bottom:6px">5. Parameter Optimization</h3>
+        <p>Use the <strong>Optimizer</strong> tab to run grid search or genetic algorithm optimization on your strategy parameters.</p>
+      </div>
+      <div class="tutorial-step">
+        <h3 style="color:var(--red);margin-bottom:6px">6. Walk-Forward Analysis</h3>
+        <p>The <strong>Analysis</strong> tab provides walk-forward testing to validate strategy robustness with in-sample/out-of-sample windows.</p>
+      </div>
+      <div class="tutorial-step">
+        <h3 style="color:var(--green);margin-bottom:6px">7. Risk & Performance</h3>
+        <p>View advanced risk metrics (VaR, CVaR, Omega, Calmar) and Buy & Hold benchmark comparison in the <strong>Performance</strong> tab.</p>
+      </div>
+      <div class="tutorial-step">
+        <h3 style="color:var(--blue);margin-bottom:6px">8. Export Reports</h3>
+        <p>Generate HTML backtest reports, export trade CSVs, or download market data in Excel/JSON format.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-green" id="btnCloseTutorial">Got it!</button>
     </div>
   </div>
 </div>

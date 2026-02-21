@@ -366,6 +366,65 @@ textarea { resize:vertical; min-height:60px; }
 .mc-progress-bar { width:100%; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
 .mc-progress-fill { height:100%; background:var(--purple); width:0; transition:width 0.1s; }
 
+/* ─── SIDEBAR TABS ─── */
+
+.sidebar-tabs {
+  display:flex; gap:2px; background:var(--bg); border:1px solid var(--border);
+  padding:2px; margin-bottom:12px;
+}
+.sidebar-tab {
+  flex:1; padding:5px 4px; border:none; background:none;
+  color:var(--muted); font-family:var(--font-mono); font-size:9px;
+  cursor:pointer; text-align:center; letter-spacing:0.5px;
+  transition:all 0.15s; text-transform:uppercase;
+}
+.sidebar-tab.active { background:var(--s2); color:var(--blue); border:1px solid var(--border); }
+.sidebar-tab:hover:not(.active) { color:var(--text); }
+.sidebar-panel { display:none; flex-direction:column; gap:14px; }
+.sidebar-panel.active { display:flex; }
+
+/* ─── HELP TEXT ─── */
+
+.help-text { font-size:10px; color:var(--muted); line-height:1.6; }
+.help-item { margin-bottom:4px; padding:3px 0; border-bottom:1px solid var(--border); }
+.help-item:last-child { border:none; }
+.help-item strong { color:var(--text); }
+.badge-inline { font-size:9px; padding:1px 5px; border-radius:2px; display:inline-block; }
+.badge-inline.up { background:rgba(38,222,129,0.12); color:var(--green); }
+.badge-inline.down { background:rgba(252,92,101,0.12); color:var(--red); }
+
+/* ─── HEATMAP ─── */
+
+.heatmap-area {
+  height:200px; position:relative; border-top:1px solid var(--border);
+  background:var(--s1); flex-shrink:0;
+}
+#heatmapCanvas { display:block; position:absolute; inset:0; width:100%!important; height:100%!important; }
+.heatmap-legend { position:absolute; right:8px; top:4px; font-size:9px; color:var(--muted); }
+
+/* ─── TUTORIAL ─── */
+
+.tutorial-step {
+  background:var(--s2); border:1px solid var(--border);
+  padding:12px; margin-bottom:8px;
+}
+.tutorial-step p { font-size:11px; color:var(--muted); line-height:1.5; }
+.tutorial-step strong { color:var(--text); }
+
+/* ─── MC VISUALIZATION ─── */
+
+.mc-histogram { margin:8px 0; }
+.mc-bar-row { display:flex; align-items:center; gap:4px; margin-bottom:2px; font-size:9px; }
+.mc-bar-label { width:50px; text-align:right; color:var(--muted); flex-shrink:0; }
+.mc-bar-fill { height:12px; transition:width 0.2s; border-radius:1px; }
+.mc-bar-count { color:var(--muted); flex-shrink:0; width:20px; }
+
+.mc-help { font-size:10px; color:var(--muted); background:var(--bg); border:1px solid var(--border); padding:8px; margin-top:8px; line-height:1.5; }
+.mc-help .verdict { font-weight:600; margin-bottom:4px; }
+.mc-help .verdict.good { color:var(--green); }
+.mc-help .verdict.ok { color:var(--yellow); }
+.mc-help .verdict.bad { color:var(--red); }
+
 /* ─── MODAL ─── */
 
 .modal-overlay {
