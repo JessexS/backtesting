@@ -13,24 +13,43 @@ export function mulberry32(a) {
 }
 
 export const REGIMES = {
-  bull:     { drift:  0.003, vM: 0.8, mr: 0,    dur: [20, 80],  color: '#26de81' },
-  bear:     { drift: -0.003, vM: 1.0, mr: 0,    dur: [15, 60],  color: '#fc5c65' },
-  sideways: { drift:  0,     vM: 0.5, mr: 0.15, dur: [30, 100], color: '#45aaf2' },
-  swing:    { drift:  0,     vM: 1.3, mr: 0.08, dur: [20, 60],  color: '#fed330', sc: 20 },
-  breakout: { drift:  0.006, vM: 2.5, mr: 0,    dur: [10, 30],  color: '#fd9644' },
-  crash:    { drift: -0.015, vM: 4.0, mr: 0,    dur: [5, 20],   color: '#a55eea' },
+  bull:     { drift:  0.0018, vM: 0.8, mr: 0.02, dur: [30, 140], color: '#26de81' },
+  bear:     { drift: -0.0022, vM: 1.1, mr: 0.02, dur: [25, 120], color: '#fc5c65' },
+  sideways: { drift:  0,      vM: 0.55, mr: 0.22, dur: [40, 180], color: '#45aaf2' },
+  swing:    { drift:  0,      vM: 1.35, mr: 0.10, dur: [30, 100], color: '#fed330', sc: 24 },
+  breakout: { drift:  0.0042, vM: 2.2, mr: 0,    dur: [8, 30],   color: '#fd9644' },
+  crash:    { drift: -0.0100, vM: 3.4, mr: 0,    dur: [5, 18],   color: '#a55eea' },
 };
 
 export const REGIME_NAMES = Object.keys(REGIMES);
 
 export const TRANSITIONS = {
-  bull:     { bull: 0.65, bear: 0.05, sideways: 0.12, swing: 0.10, breakout: 0.06, crash: 0.02 },
-  bear:     { bull: 0.05, bear: 0.60, sideways: 0.15, swing: 0.10, breakout: 0.02, crash: 0.08 },
-  sideways: { bull: 0.15, bear: 0.12, sideways: 0.45, swing: 0.18, breakout: 0.07, crash: 0.03 },
-  swing:    { bull: 0.12, bear: 0.10, sideways: 0.20, swing: 0.40, breakout: 0.10, crash: 0.08 },
-  breakout: { bull: 0.25, bear: 0.05, sideways: 0.10, swing: 0.10, breakout: 0.40, crash: 0.10 },
-  crash:    { bull: 0.05, bear: 0.30, sideways: 0.20, swing: 0.15, breakout: 0.05, crash: 0.25 },
+  bull:     { bull: 0.68, bear: 0.05, sideways: 0.12, swing: 0.10, breakout: 0.04, crash: 0.01 },
+  bear:     { bull: 0.08, bear: 0.62, sideways: 0.14, swing: 0.08, breakout: 0.01, crash: 0.07 },
+  sideways: { bull: 0.14, bear: 0.12, sideways: 0.48, swing: 0.18, breakout: 0.06, crash: 0.02 },
+  swing:    { bull: 0.12, bear: 0.11, sideways: 0.18, swing: 0.42, breakout: 0.11, crash: 0.06 },
+  breakout: { bull: 0.28, bear: 0.07, sideways: 0.12, swing: 0.10, breakout: 0.33, crash: 0.10 },
+  crash:    { bull: 0.05, bear: 0.37, sideways: 0.20, swing: 0.15, breakout: 0.03, crash: 0.20 },
 };
+
+export const TIMEFRAME_MINUTES = {
+  '1m': 1,
+  '5m': 5,
+  '15m': 15,
+  '1h': 60,
+  '4h': 240,
+  '1d': 1440,
+  '1M': 43200,
+};
+
+export const TIMEFRAMES = Object.keys(TIMEFRAME_MINUTES);
+
+function toTf(input = '1m') {
+  const normalized = `${input}`.trim();
+  if (normalized.toLowerCase() === '1mo') return '1M';
+  if (normalized.toLowerCase() === '1m' && normalized !== '1M') return '1m';
+  return TIMEFRAME_MINUTES[normalized] ? normalized : '1m';
+}
 
 export class Gen {
   constructor(seed, startP, baseV, bias, switchPct) {
@@ -46,6 +65,8 @@ export class Gen {
     this.swingPhase = 0;
     this.history = [];
     this.regimeCounts = {};
+    this.lastRet = 0;
+    this.sigma = Math.max(0.0008, this.baseV * 0.8);
     REGIME_NAMES.forEach((r) => (this.regimeCounts[r] = 0));
     this._pickDur();
   }
@@ -69,36 +90,72 @@ export class Gen {
     this.swingPhase = this.rng() * Math.PI * 2;
   }
 
+  _gaussian() {
+    const u1 = this.rng();
+    const u2 = this.rng();
+    return Math.sqrt(-2 * Math.log(u1 + 1e-12)) * Math.cos(2 * Math.PI * u2);
+  }
+
   next() {
     this.regimeDur++;
     if (this.regimeDur >= this.maxDur || this.rng() < this.switchPct) this._transition();
     this.regimeCounts[this.regime]++;
 
     const R = REGIMES[this.regime];
-    const vol = this.baseV * R.vM;
+    const targetVol = Math.max(0.0005, this.baseV * R.vM);
+    const shock = this._gaussian();
+
+    // Light GARCH-like volatility clustering for more realistic runs of calm/violent candles.
+    this.sigma = Math.max(
+      0.0003,
+      0.86 * this.sigma + 0.10 * Math.abs(this.lastRet) + 0.04 * targetVol,
+    );
+
     const drift = R.drift + this.bias;
-    const mr = R.mr > 0 ? R.mr * (this.anchor - this.price) / this.price : 0;
-    const swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2 * Math.PI / R.sc)) * vol * 0.4 : 0;
-    const u1 = this.rng(), u2 = this.rng();
-    const z = Math.sqrt(-2 * Math.log(u1 + 1e-10)) * Math.cos(2 * Math.PI * u2);
-    const ret = drift + mr + swing + vol * z;
+    const meanReversion = R.mr > 0 ? R.mr * (this.anchor - this.price) / this.price : 0;
+    const swing = R.sc ? Math.sin(this.swingPhase + this.regimeDur * (2 * Math.PI / R.sc)) * this.sigma * 0.3 : 0;
+    const momentum = 0.12 * this.lastRet;
+
+    const jumpChance = this.regime === 'breakout' ? 0.18 : this.regime === 'crash' ? 0.24 : 0.02;
+    const jump = this.rng() < jumpChance ? this._gaussian() * this.sigma * (1.5 + this.rng() * 1.8) : 0;
+
+    const ret = drift + meanReversion + swing + momentum + shock * this.sigma + jump;
 
     const open = this.price;
-    const close = open * (1 + ret);
-    const wHi = Math.abs(vol * (0.3 + this.rng() * 0.7));
-    const wLo = Math.abs(vol * (0.3 + this.rng() * 0.7));
-    let high, low;
-    if (close >= open) {
-      high = Math.max(open, close) * (1 + wHi);
-      low = Math.min(open, close) * (1 - wLo * 0.5);
-    } else {
-      high = Math.max(open, close) * (1 + wHi * 0.5);
-      low = Math.min(open, close) * (1 - wLo);
+    const close = open * Math.max(0.001, 1 + ret);
+
+    const body = Math.abs(close - open) / Math.max(open, 1e-9);
+    const wickScale = this.sigma * (0.45 + this.rng() * 0.95);
+    const upWick = wickScale * (0.6 + this.rng() * 1.1) + body * (close < open ? 0.5 : 0.2);
+    const downWick = wickScale * (0.6 + this.rng() * 1.1) + body * (close >= open ? 0.5 : 0.2);
+
+    let high = Math.max(open, close) * (1 + upWick);
+    let low = Math.min(open, close) * (1 - downWick);
+
+    if (this.regime === 'crash' && this.rng() < 0.1) {
+      low *= 1 - this.sigma * (1 + this.rng());
     }
+
     if (low <= 0) low = open * 0.001;
-    const volume = (5000 + this.rng() * 15000) * R.vM;
+    if (high < Math.max(open, close)) high = Math.max(open, close);
+
+    const absMove = Math.abs(ret);
+    const volume = (2000 + this.rng() * 8000) * R.vM * (1 + absMove * 12 + this.sigma * 8);
+
     this.price = close;
-    const candle = { time: this.history.length, open, high, low, close, volume, regime: this.regime };
+    this.lastRet = ret;
+
+    const candle = {
+      time: this.history.length,
+      ts: this.history.length * 60_000,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      regime: this.regime,
+    };
+
     this.history.push(candle);
     return candle;
   }
@@ -113,9 +170,68 @@ export class MarketEngine {
       params.bias,
       params.switchPct
     );
+    this.timeframes = {};
+    this.currentBuckets = {};
+    TIMEFRAMES.forEach((tf) => {
+      this.timeframes[tf] = [];
+      this.currentBuckets[tf] = null;
+    });
+    // Keep 1m history as the generator's canonical source for backwards compatibility.
+    this.timeframes['1m'] = this.gen.history;
   }
 
-  tick() { return this.gen.next(); }
-  getHistory() { return this.gen.history; }
+  _updateTimeframes(baseCandle) {
+    for (const tf of TIMEFRAMES) {
+      if (tf === '1m') continue;
+      const tfSize = TIMEFRAME_MINUTES[tf];
+      const tfIndex = Math.floor(baseCandle.time / tfSize);
+      let bucket = this.currentBuckets[tf];
+
+      if (!bucket || bucket.time !== tfIndex) {
+        bucket = {
+          time: tfIndex,
+          ts: tfIndex * tfSize * 60_000,
+          open: baseCandle.open,
+          high: baseCandle.high,
+          low: baseCandle.low,
+          close: baseCandle.close,
+          volume: baseCandle.volume,
+          regime: baseCandle.regime,
+        };
+        this.currentBuckets[tf] = bucket;
+        this.timeframes[tf].push(bucket);
+      } else {
+        bucket.high = Math.max(bucket.high, baseCandle.high);
+        bucket.low = Math.min(bucket.low, baseCandle.low);
+        bucket.close = baseCandle.close;
+        bucket.volume += baseCandle.volume;
+        bucket.regime = baseCandle.regime;
+      }
+    }
+  }
+
+  tick(timeframe = '1m') {
+    const c = this.gen.next();
+    this._updateTimeframes(c);
+    const tf = toTf(timeframe);
+    if (tf === '1m') return c;
+    const tfData = this.timeframes[tf];
+    return tfData[tfData.length - 1] || c;
+  }
+
+  getHistory(timeframe = '1m') {
+    const tf = toTf(timeframe);
+    return this.timeframes[tf];
+  }
+
+  printCandles(timeframe = '1m', limit = 20, precision = 4) {
+    const tf = toTf(timeframe);
+    const candles = this.getHistory(tf);
+    const rows = candles.slice(Math.max(0, candles.length - limit));
+    const p = (n) => Number(n).toFixed(precision);
+    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} ${c.regime}`);
+    return [`# ${tf} candles (${rows.length}/${candles.length})`, ...lines].join('\n');
+  }
+
   getRegimeCounts() { return this.gen.regimeCounts; }
 }
