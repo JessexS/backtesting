@@ -234,26 +234,6 @@ textarea { resize:vertical; min-height:60px; }
 .chart-hint { margin-left:auto; font-size:10px; color:var(--muted); }
 
 
-.tf-group {
-  display:flex;
-  align-items:center;
-  gap:6px;
-  margin-left:4px;
-}
-.tf-group label {
-  font-size:9px;
-  letter-spacing:1px;
-  color:var(--muted);
-  text-transform:uppercase;
-}
-.tf-group select {
-  width:auto;
-  min-width:64px;
-  padding:4px 7px;
-  font-size:10px;
-  border:1px solid var(--border2);
-  background:var(--bg);
-}
 
 .live-badge {
   font-size:9px; letter-spacing:2px; padding:2px 8px;

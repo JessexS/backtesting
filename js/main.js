@@ -98,46 +98,6 @@ function getScrambleOptions() {
 }
 
 
-const TF_MINUTES = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '4h': 240, '1d': 1440, '1M': 43200 };
-
-function aggregateCandles(candles, timeframe = '1m') {
-  const step = TF_MINUTES[timeframe] || 1;
-  if (step <= 1 || candles.length === 0) return candles;
-
-  const out = [];
-  let bucket = null;
-  for (const c of candles) {
-    const idx = Math.floor((c.time ?? 0) / step);
-    if (!bucket || bucket.time !== idx) {
-      bucket = {
-        time: idx,
-        ts: idx * step * 60_000,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        volume: c.volume,
-        regime: c.regime || 'n/a',
-      };
-      out.push(bucket);
-    } else {
-      bucket.high = Math.max(bucket.high, c.high);
-      bucket.low = Math.min(bucket.low, c.low);
-      bucket.close = c.close;
-      bucket.volume += c.volume;
-      bucket.regime = c.regime || bucket.regime;
-    }
-  }
-  return out;
-}
-
-function getDisplayedHistory(baseHistory) {
-  const tf = APP.chartTimeframe || '1m';
-  if (tf === '1m') return baseHistory;
-  if (APP.market) return APP.market.getHistory(tf);
-  return aggregateCandles(baseHistory, tf);
-}
-
 // ─── Strategy Loading ───
 
 function readStrategyParams(strat) {
@@ -910,6 +870,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnStop').addEventListener('click', stopLive);
   document.getElementById('btnReset').addEventListener('click', resetAll);
 
+  document.getElementById('btnHelp')?.addEventListener('click', () => {
+    document.getElementById('tutorialModal').classList.add('show');
+  });
   document.querySelector('.logo')?.addEventListener('click', () => {
     document.getElementById('tutorialModal').classList.add('show');
   });
@@ -994,6 +957,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Storage
   document.getElementById('btnSaveRun').addEventListener('click', saveCurrentRun);
+  document.getElementById('btnClearRuns')?.addEventListener('click', async () => {
+    if (!confirm('Clear all saved runs?')) return;
+    await APP.storage.clearAll();
+    await refreshSavedRuns();
+  });
   refreshSavedRuns();
 
   // Plugin indicators
