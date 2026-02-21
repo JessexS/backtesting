@@ -32,6 +32,25 @@ export const TRANSITIONS = {
   crash:    { bull: 0.07, bear: 0.39, sideways: 0.20, swing: 0.16, breakout: 0.03, crash: 0.15 },
 };
 
+export const TIMEFRAME_MINUTES = {
+  '1m': 1,
+  '5m': 5,
+  '15m': 15,
+  '1h': 60,
+  '4h': 240,
+  '1d': 1440,
+  '1M': 43200,
+};
+
+export const TIMEFRAMES = Object.keys(TIMEFRAME_MINUTES);
+
+function toTf(input = '1m') {
+  const normalized = `${input}`.trim();
+  if (normalized.toLowerCase() === '1mo') return '1M';
+  if (normalized.toLowerCase() === '1m' && normalized !== '1M') return '1m';
+  return TIMEFRAME_MINUTES[normalized] ? normalized : '1m';
+}
+
 export class Gen {
   constructor(seed, startP, baseV, bias, switchPct) {
     this.rng = mulberry32(seed);
@@ -186,10 +205,69 @@ export class MarketEngine {
       params.bias,
       params.switchPct
     );
+    this.timeframes = {};
+    this.currentBuckets = {};
+    TIMEFRAMES.forEach((tf) => {
+      this.timeframes[tf] = [];
+      this.currentBuckets[tf] = null;
+    });
+    // Keep 1m history as the generator's canonical source for backwards compatibility.
+    this.timeframes['1m'] = this.gen.history;
   }
 
-  tick() { return this.gen.next(); }
-  getHistory() { return this.gen.history; }
+  _updateTimeframes(baseCandle) {
+    for (const tf of TIMEFRAMES) {
+      if (tf === '1m') continue;
+      const tfSize = TIMEFRAME_MINUTES[tf];
+      const tfIndex = Math.floor(baseCandle.time / tfSize);
+      let bucket = this.currentBuckets[tf];
+
+      if (!bucket || bucket.time !== tfIndex) {
+        bucket = {
+          time: tfIndex,
+          ts: tfIndex * tfSize * 60_000,
+          open: baseCandle.open,
+          high: baseCandle.high,
+          low: baseCandle.low,
+          close: baseCandle.close,
+          volume: baseCandle.volume,
+          regime: baseCandle.regime,
+        };
+        this.currentBuckets[tf] = bucket;
+        this.timeframes[tf].push(bucket);
+      } else {
+        bucket.high = Math.max(bucket.high, baseCandle.high);
+        bucket.low = Math.min(bucket.low, baseCandle.low);
+        bucket.close = baseCandle.close;
+        bucket.volume += baseCandle.volume;
+        bucket.regime = baseCandle.regime;
+      }
+    }
+  }
+
+  tick(timeframe = '1m') {
+    const c = this.gen.next();
+    this._updateTimeframes(c);
+    const tf = toTf(timeframe);
+    if (tf === '1m') return c;
+    const tfData = this.timeframes[tf];
+    return tfData[tfData.length - 1] || c;
+  }
+
+  getHistory(timeframe = '1m') {
+    const tf = toTf(timeframe);
+    return this.timeframes[tf];
+  }
+
+  printCandles(timeframe = '1m', limit = 20, precision = 4) {
+    const tf = toTf(timeframe);
+    const candles = this.getHistory(tf);
+    const rows = candles.slice(Math.max(0, candles.length - limit));
+    const p = (n) => Number(n).toFixed(precision);
+    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} ${c.regime}`);
+    return [`# ${tf} candles (${rows.length}/${candles.length})`, ...lines].join('\n');
+  }
+
   getRegimeCounts() { return this.gen.regimeCounts; }
 
   printCandles(limit = 20, precision = 4) {
