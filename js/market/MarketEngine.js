@@ -234,4 +234,12 @@ export class MarketEngine {
   }
 
   getRegimeCounts() { return this.gen.regimeCounts; }
+
+  printCandles(limit = 20, precision = 4) {
+    const candles = this.getHistory();
+    const rows = candles.slice(Math.max(0, candles.length - limit));
+    const p = (n) => Number(n).toFixed(precision);
+    const lines = rows.map((c) => `${c.time}\tO:${p(c.open)} H:${p(c.high)} L:${p(c.low)} C:${p(c.close)} V:${p(c.volume)} ${c.regime}`);
+    return [`# candles (${rows.length}/${candles.length})`, ...lines].join('\n');
+  }
 }
