@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // TradingEngine — Position lifecycle, SL/TP/Trail, liquidation
+// Includes market impact modeling (Almgren-Chriss simplified)
 // ═══════════════════════════════════════════════════════════════
 
 export class TradingEngine {
@@ -26,6 +27,20 @@ export class TradingEngine {
     this.ordersToProcess = [];
     this.exposedBars = 0;
     this.totalBars = 0;
+
+    // Market impact modeling
+    this.marketImpact = settings.marketImpact !== false;
+    this.impactFactor = settings.impactFactor || 0.1;
+    this.avgVolume = 10000;
+  }
+
+  // Square-root market impact model (Almgren-Chriss simplified)
+  _calcMarketImpact(size, price, volume) {
+    if (!this.marketImpact || !volume) return 0;
+    const notional = size * price;
+    const volumeNotional = volume * price;
+    const participation = notional / (volumeNotional || 1);
+    return this.impactFactor / 100 * Math.sqrt(Math.abs(participation));
   }
 
   getSize(price) {
@@ -43,11 +58,16 @@ export class TradingEngine {
       if (o.close) { this._closePosition(o, candle); continue; }
       const price = candle.close;
       const side = o.side;
-      const slip = side === 'buy' ? 1 + this.slippage : 1 - this.slippage;
-      const execPrice = price * slip;
-      let size = o.size || this.getSize(execPrice);
+      let size = o.size || this.getSize(price);
       size *= this.partialFill;
       if (size <= 0) continue;
+
+      // Market impact + slippage
+      const impact = this._calcMarketImpact(size, price, candle.volume);
+      const totalSlip = this.slippage + impact;
+      const slip = side === 'buy' ? 1 + totalSlip : 1 - totalSlip;
+      const execPrice = price * slip;
+      this.avgVolume = this.avgVolume * 0.95 + candle.volume * 0.05;
 
       let notional = size * execPrice;
       const fee = notional * this.takerFee;
@@ -90,7 +110,9 @@ export class TradingEngine {
   }
 
   _exitPosition(pos, exitPrice, candle, reason) {
-    const slip = pos.direction === 'long' ? 1 - this.slippage : 1 + this.slippage;
+    const impact = this._calcMarketImpact(pos.size, exitPrice, candle.volume);
+    const totalSlip = this.slippage + impact;
+    const slip = pos.direction === 'long' ? 1 - totalSlip : 1 + totalSlip;
     const price = exitPrice * slip;
     const fee = pos.size * price * this.takerFee;
     this.totalFees += fee;
