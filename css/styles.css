@@ -542,8 +542,6 @@ textarea { resize:vertical; min-height:60px; }
 
   .chart-area { min-height:300px; }
   .panel { border-radius:12px; }
-  .tf-group { margin-left:auto; }
-  .tf-group label { display:none; }
   .chart-toolbar .chart-hint { display:none; }
 
   body { overflow-y:auto; }

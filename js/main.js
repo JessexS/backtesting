@@ -910,21 +910,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnStop').addEventListener('click', stopLive);
   document.getElementById('btnReset').addEventListener('click', resetAll);
 
-  const tfEl = document.getElementById('chartTimeframe');
-  if (tfEl) {
-    APP.chartTimeframe = tfEl.value || '1m';
-    tfEl.addEventListener('change', () => {
-      APP.chartTimeframe = tfEl.value;
-      const baseHistory = APP.market
-        ? APP.market.getHistory('1m')
-        : (APP.realDataCandles ? APP.realDataCandles.slice(0, APP.realDataIdx) : []);
-      if (baseHistory.length > 0) updateUI(baseHistory);
-    });
-  }
-
-  document.getElementById('btnHelp')?.addEventListener('click', () => {
-    document.getElementById('tutorialModal').classList.add('show');
-  });
   document.querySelector('.logo')?.addEventListener('click', () => {
     document.getElementById('tutorialModal').classList.add('show');
   });
@@ -1009,11 +994,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Storage
   document.getElementById('btnSaveRun').addEventListener('click', saveCurrentRun);
-  document.getElementById('btnClearRuns')?.addEventListener('click', async () => {
-    if (!confirm('Clear all saved runs?')) return;
-    await APP.storage.clearAll();
-    await refreshSavedRuns();
-  });
   refreshSavedRuns();
 
   // Plugin indicators
