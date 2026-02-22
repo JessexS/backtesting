@@ -15,6 +15,7 @@ export function mulberry32(a) {
   };
 }
 
+// UI color map retained for compatibility.
 export const REGIMES = {
   bull:     { color: '#26de81' },
   bear:     { color: '#fc5c65' },
