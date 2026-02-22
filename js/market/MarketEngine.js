@@ -16,6 +16,7 @@ export function mulberry32(a) {
   };
 }
 
+// UI color map retained for compatibility.
 export const REGIMES = {
   bull:     { color: '#26de81' },
   bear:     { color: '#fc5c65' },
@@ -37,6 +38,7 @@ function classifyRegime(candle) {
   if (imb < -0.12) return 'bear';
   return 'swing';
 }
+<<<<<<< codex/enhance-candle-printer-for-multiple-intervals
 
 export class MarketEngine {
   constructor(params = {}) {
@@ -90,6 +92,54 @@ export class MarketEngine {
     const closed = this.aggregator.candles;
     if (closed.length > this.historyMaxBars) {
       closed.splice(0, closed.length - this.historyMaxBars);
+=======
+
+export class MarketEngine {
+  constructor(params = {}) {
+    this.sim = new TickMarketSimulator({
+      seed: params.seed,
+      startPrice: params.startPrice,
+      volatility: params.volatility,
+      bias: params.bias,
+      switchPct: params.switchPct,
+      tickSize: params.tickSize,
+      lambdaBid: params.lambdaBid,
+      lambdaAsk: params.lambdaAsk,
+      lambdaLiquidity: params.lambdaLiquidity,
+      sizeXm: params.sizeXm,
+      sizeAlpha: params.sizeAlpha,
+      sizeCap: params.sizeCap,
+      baseDepth: params.baseDepth,
+      bookLevels: params.bookLevels,
+      priceImpact: params.priceImpact,
+    });
+    this.aggregator = new CandleAggregator((params.barSeconds ?? 60) * 1000);
+    this.regimeCounts = Object.fromEntries(REGIME_NAMES.map((r) => [r, 0]));
+  }
+
+  tick() {
+    if (!this.aggregator.current) {
+      const first = this.sim.nextTick();
+      this.aggregator.pushTick(first);
+    }
+
+    const startSlot = this.aggregator.current.slot;
+    let guard = 0;
+
+    while (this.aggregator.current && this.aggregator.current.slot === startSlot && guard < 10000) {
+      const t = this.sim.nextTick();
+      this.aggregator.pushTick(t);
+      guard++;
+    }
+
+    const history = this.aggregator.getCandles(false);
+    const candle = history[history.length - 1] || this.aggregator.current?.candle;
+    if (!candle) return null;
+
+    if (!candle.regime) {
+      candle.regime = classifyRegime(candle);
+      this.regimeCounts[candle.regime]++;
+>>>>>>> main
     }
 
     return candle;
@@ -97,6 +147,7 @@ export class MarketEngine {
 
   getHistory() { return this.aggregator.getCandles(false); }
   getRegimeCounts() { return this.regimeCounts; }
+<<<<<<< codex/enhance-candle-printer-for-multiple-intervals
 
 
   reset(seed = DEFAULT_SEED) {
@@ -131,6 +182,9 @@ export class MarketEngine {
   }
 
 
+=======
+
+>>>>>>> main
   printCandles(limit = 20, precision = 4) {
     const candles = this.getHistory();
     const rows = candles.slice(Math.max(0, candles.length - limit));
