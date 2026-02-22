@@ -2,6 +2,7 @@
 // main.js — Application entry point, event wiring, main loop
 // ═══════════════════════════════════════════════════════════════
 
+import { TickMarketSimulator } from './core/TickMarketSimulator.js'; 
 import { MarketEngine } from './market/MarketEngine.js';
 import { TradingEngine } from './trading/TradingEngine.js';
 import { ExecutionEngine } from './trading/ExecutionEngine.js';
@@ -45,6 +46,7 @@ const APP = {
   lastTradeIdx: 0,
   realDataCandles: null,  // For real data mode
   realDataIdx: 0,
+  chartTimeframe: '1m',
 };
 
 // ─── Helpers ───
@@ -268,7 +270,7 @@ function tick() {
 
     if (APP.realDataIdx >= APP.realDataCandles.length) {
       const liqs = APP.trading.update(c);
-      updateUI(history);
+      updateUI(history, c);
       stopLive();
       return;
     }
@@ -311,10 +313,11 @@ function tick() {
   APP.ui.addTradeMarkers(APP.ui.chart, trades, APP.lastTradeIdx);
   APP.lastTradeIdx = trades.length;
 
-  updateUI(history);
+  updateUI(history, c);
 }
 
-function updateUI(history) {
+function updateUI(baseHistory, latestCandle = null) {
+  const history = getDisplayedHistory(baseHistory);
   if (!APP.trading) return;
   const n = history.length;
   if (!n) return;
