@@ -1,9 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
-// MarketEngine — Tick-sim + candle aggregation wrapper
+// MarketEngine — LOB-based synthetic OHLCV generation
 // ═══════════════════════════════════════════════════════════════
 
-import { TickMarketSimulator } from '../core/TickMarketSimulator.js';
-import { CandleAggregator } from '../core/CandleAggregator.js';
+import { MarketSimulator } from './MarketSimulator.js';
 
 export function mulberry32(a) {
   return function () {
@@ -17,66 +16,43 @@ export function mulberry32(a) {
 
 // UI color map retained for compatibility.
 export const REGIMES = {
-  bull:     { color: '#26de81' },
-  bear:     { color: '#fc5c65' },
-  sideways: { color: '#45aaf2' },
-  swing:    { color: '#fed330' },
-  breakout: { color: '#fd9644' },
-  crash:    { color: '#a55eea' },
+  bull:     { drift:  0.0014, vM: 0.75, mr: 0.03, dur: [30, 140], color: '#26de81' },
+  bear:     { drift: -0.0018, vM: 1.00, mr: 0.03, dur: [24, 120], color: '#fc5c65' },
+  sideways: { drift:  0.0000, vM: 0.60, mr: 0.20, dur: [40, 180], color: '#45aaf2' },
+  swing:    { drift:  0.0000, vM: 1.20, mr: 0.08, dur: [24, 95],  color: '#fed330', sc: 22 },
+  breakout: { drift:  0.0035, vM: 1.85, mr: 0.00, dur: [8, 24],   color: '#fd9644' },
+  crash:    { drift: -0.0075, vM: 2.70, mr: 0.00, dur: [5, 16],   color: '#a55eea' },
 };
 
 export const REGIME_NAMES = Object.keys(REGIMES);
 
-function classifyRegime(candle) {
-  const ret = (candle.close - candle.open) / Math.max(candle.open, 1e-9);
-  const imb = candle.imbalance ?? 0;
-  if (ret < -0.01 || imb < -0.35) return 'crash';
-  if (ret > 0.008 || imb > 0.35) return 'breakout';
-  if (Math.abs(imb) < 0.06 && (candle.spread / Math.max(candle.mid, 1e-9)) < 0.0015) return 'sideways';
-  if (imb > 0.12) return 'bull';
-  if (imb < -0.12) return 'bear';
-  return 'swing';
-}
-
 export class MarketEngine {
   constructor(params = {}) {
-    this.sim = new TickMarketSimulator({
+    this.sim = new MarketSimulator({
       seed: params.seed,
       startPrice: params.startPrice,
       volatility: params.volatility,
       bias: params.bias,
       switchPct: params.switchPct,
-      tickSize: params.tickSize,
+
+      // Exposed microstructure params (optional)
+      tickSize: params.tickSize ?? 0.01,
       lambdaBid: params.lambdaBid,
       lambdaAsk: params.lambdaAsk,
-      lambdaLiquidity: params.lambdaLiquidity,
+      avgSpreadTicks: params.avgSpreadTicks,
       sizeXm: params.sizeXm,
       sizeAlpha: params.sizeAlpha,
       sizeCap: params.sizeCap,
       baseDepth: params.baseDepth,
       bookLevels: params.bookLevels,
+      barSeconds: params.barSeconds,
       priceImpact: params.priceImpact,
     });
-    this.aggregator = new CandleAggregator((params.barSeconds ?? 60) * 1000);
-    this.regimeCounts = Object.fromEntries(REGIME_NAMES.map((r) => [r, 0]));
   }
 
-  tick() {
-    const prevCount = this.aggregator.getCandles().length;
-    let candle = null;
-    while (!candle || this.aggregator.getCandles().length === prevCount) {
-      const tick = this.sim.nextTick();
-      candle = this.aggregator.pushTick(tick);
-      candle.imbalance = tick.side === 'buy' ? 0.2 : -0.2;
-    }
-
-    candle.regime = classifyRegime(candle);
-    this.regimeCounts[candle.regime]++;
-    return candle;
-  }
-
-  getHistory() { return this.aggregator.getCandles(); }
-  getRegimeCounts() { return this.regimeCounts; }
+  tick() { return this.sim.next(); }
+  getHistory() { return this.sim.history; }
+  getRegimeCounts() { return this.sim.regimeCounts; }
 
   printCandles(limit = 20, precision = 4) {
     const candles = this.getHistory();
