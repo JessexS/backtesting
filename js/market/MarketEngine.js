@@ -62,20 +62,33 @@ export class MarketEngine {
   }
 
   tick() {
-    const prevCount = this.aggregator.getCandles().length;
-    let candle = null;
-    while (!candle || this.aggregator.getCandles().length === prevCount) {
-      const tick = this.sim.nextTick();
-      candle = this.aggregator.pushTick(tick);
-      candle.imbalance = tick.side === 'buy' ? 0.2 : -0.2;
+    if (!this.aggregator.current) {
+      const first = this.sim.nextTick();
+      this.aggregator.pushTick(first);
     }
 
-    candle.regime = classifyRegime(candle);
-    this.regimeCounts[candle.regime]++;
+    const startSlot = this.aggregator.current.slot;
+    let guard = 0;
+
+    while (this.aggregator.current && this.aggregator.current.slot === startSlot && guard < 10000) {
+      const t = this.sim.nextTick();
+      this.aggregator.pushTick(t);
+      guard++;
+    }
+
+    const history = this.aggregator.getCandles(false);
+    const candle = history[history.length - 1] || this.aggregator.current?.candle;
+    if (!candle) return null;
+
+    if (!candle.regime) {
+      candle.regime = classifyRegime(candle);
+      this.regimeCounts[candle.regime]++;
+    }
+
     return candle;
   }
 
-  getHistory() { return this.aggregator.getCandles(); }
+  getHistory() { return this.aggregator.getCandles(false); }
   getRegimeCounts() { return this.regimeCounts; }
 
   printCandles(limit = 20, precision = 4) {

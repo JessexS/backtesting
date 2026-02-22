@@ -524,7 +524,7 @@ async function fetchRealData() {
     let candles;
     if (source === 'binance') {
       const symbol = document.getElementById('dataSymbol').value;
-      const interval = document.getElementById('dataInterval').value;
+      const interval = '1h';
       const limit = +document.getElementById('dataLimit').value;
       candles = await APP.dataEngine.fetchBinanceOHLCV(symbol, interval, limit);
       document.getElementById('pairBadge').textContent = symbol;
