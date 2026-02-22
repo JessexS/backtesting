@@ -2,6 +2,7 @@
 // main.js — Application entry point, event wiring, main loop
 // ═══════════════════════════════════════════════════════════════
 
+import { TickMarketSimulator } from './core/TickMarketSimulator.js'; 
 import { MarketEngine } from './market/MarketEngine.js';
 import { TradingEngine } from './trading/TradingEngine.js';
 import { ExecutionEngine } from './trading/ExecutionEngine.js';
