@@ -19,6 +19,7 @@ import { DataEngine } from './data/DataEngine.js';
 import { ReportEngine } from './report/ReportEngine.js';
 import { StorageEngine } from './storage/StorageEngine.js';
 import { PluginEngine } from './plugin/PluginEngine.js';
+import { DEFAULT_TIMEFRAME } from '../src/config.js';
 
 // ─── App State ───
 
@@ -524,7 +525,11 @@ async function fetchRealData() {
     let candles;
     if (source === 'binance') {
       const symbol = document.getElementById('dataSymbol').value;
+<<<<<<< codex/enhance-candle-printer-for-multiple-intervals
+      const interval = DEFAULT_TIMEFRAME;
+=======
       const interval = '1h';
+>>>>>>> main
       const limit = +document.getElementById('dataLimit').value;
       candles = await APP.dataEngine.fetchBinanceOHLCV(symbol, interval, limit);
       document.getElementById('pairBadge').textContent = symbol;

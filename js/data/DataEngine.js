@@ -1,4 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
+import { DEFAULT_TIMEFRAME } from '../../src/config.js';
 // DataEngine — Real market data fetching (crypto & stocks)
 // Supports: CoinGecko (crypto), Yahoo Finance proxy (stocks)
 // Also: data scrambling with preserved start/end prices
@@ -36,7 +37,7 @@ export class DataEngine {
   }
 
   // Fetch crypto data from Binance public API
-  async fetchBinanceOHLCV(symbol = 'BTCUSDT', interval = '1h', limit = 500) {
+  async fetchBinanceOHLCV(symbol = 'BTCUSDT', interval = DEFAULT_TIMEFRAME, limit = 500) {
     const cacheKey = `binance_${symbol}_${interval}_${limit}`;
     if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
 
