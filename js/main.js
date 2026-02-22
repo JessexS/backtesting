@@ -18,6 +18,7 @@ import { DataEngine } from './data/DataEngine.js';
 import { ReportEngine } from './report/ReportEngine.js';
 import { StorageEngine } from './storage/StorageEngine.js';
 import { PluginEngine } from './plugin/PluginEngine.js';
+import { DEFAULT_TIMEFRAME } from '../src/config.js';
 
 // ─── App State ───
 
@@ -95,6 +96,7 @@ function getScrambleOptions() {
     },
   };
 }
+
 
 // ─── Strategy Loading ───
 
@@ -520,7 +522,7 @@ async function fetchRealData() {
     let candles;
     if (source === 'binance') {
       const symbol = document.getElementById('dataSymbol').value;
-      const interval = document.getElementById('dataInterval').value;
+      const interval = DEFAULT_TIMEFRAME;
       const limit = +document.getElementById('dataLimit').value;
       candles = await APP.dataEngine.fetchBinanceOHLCV(symbol, interval, limit);
       document.getElementById('pairBadge').textContent = symbol;
@@ -867,8 +869,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnStop').addEventListener('click', stopLive);
   document.getElementById('btnReset').addEventListener('click', resetAll);
 
-  // Help / Tutorial
-  document.getElementById('btnHelp').addEventListener('click', () => {
+  document.getElementById('btnHelp')?.addEventListener('click', () => {
+    document.getElementById('tutorialModal').classList.add('show');
+  });
+  document.querySelector('.logo')?.addEventListener('click', () => {
     document.getElementById('tutorialModal').classList.add('show');
   });
   document.getElementById('btnCloseTutorial').addEventListener('click', () => {
@@ -952,7 +956,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Storage
   document.getElementById('btnSaveRun').addEventListener('click', saveCurrentRun);
-  document.getElementById('btnClearRuns').addEventListener('click', async () => {
+  document.getElementById('btnClearRuns')?.addEventListener('click', async () => {
+    if (!confirm('Clear all saved runs?')) return;
     await APP.storage.clearAll();
     await refreshSavedRuns();
   });

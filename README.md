@@ -76,3 +76,43 @@ docker build -t backtester . && docker run -p 8000:8000 backtester
 - [x] Docker & cloud-ready backtester container
 - [x] Persistent store & results database (timeseries + run metadata)
 - [x] Realism improvements (market impact modeling, out-of-sample + walk-forward test)
+
+
+## New local workflow (no Docker required)
+
+```bash
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+Production preview:
+
+```bash
+npm run build
+npm run preview
+```
+
+Run tests and lint:
+
+```bash
+npm test
+npm run lint
+```
+
+## Architecture additions (modular core)
+
+- `src/config.js` — single source of truth for default timeframe and runtime constants.
+- `js/core/TickMarketSimulator.js` — deterministic seeded tick generator.
+- `js/core/CandleAggregator.js` — tick -> OHLCV aggregator.
+- `js/core/BacktestEngine.js` — pure runBacktest orchestrator.
+- `js/core/MonteCarloEngineV2.js` — bootstrap/reshuffle Monte Carlo utilities.
+- `js/workers/optimizationWorker.js` — worker-compatible optimization runner.
+
+## Migration note
+
+- UI timeframe selector (`dataInterval`) has been removed.
+- Real-data fetch interval now comes from `DEFAULT_TIMEFRAME` in `src/config.js`.
+- To change default timeframe globally, edit:
+  - `src/config.js` → `DEFAULT_TIMEFRAME`.
