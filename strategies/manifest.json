@@ -2,6 +2,8 @@
   "strategies": [
     "ExampleStrategy.js",
     "ArmV2Strategy.js",
-    "MlKnnLorentzian.js"
+    "MlKnnLorentzian.js",
+    "MomentumShift.js",
+    "MACDloop.js"
   ]
 }
