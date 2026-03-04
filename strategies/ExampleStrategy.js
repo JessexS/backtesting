@@ -6,6 +6,18 @@
 
 let S = {};
 
+const DEFAULTS = {
+  emaFast: 7,
+  emaSlow: 90,
+  riskPct: 0.05,
+  stopMultiple: 2,
+  rr1_3: 3,
+  rr1_5: 5,
+  ddMax: 0.20,
+  barsSinceMin: 5,
+  atrPeriod: 14,
+};
+
 function calcEMA(candles, n, period) {
   const k = 2 / (period + 1);
   let start = Math.max(0, n - period * 4);
@@ -19,8 +31,43 @@ function calcEMA(candles, n, period) {
 export default {
   name: "Reverse EMA Crossover",
 
+  params: {
+    'Indicators': {
+      emaFast: { label: 'Fast EMA', default: 7, min: 2, max: 100 },
+      emaSlow: { label: 'Slow EMA', default: 90, min: 10, max: 500 },
+    },
+    'Risk': {
+      riskPct: { label: 'Risk %', default: 5, min: 0.5, max: 20, step: 0.5 },
+      stopMultiple: { label: 'Stop (xATR)', default: 2, min: 0.5, max: 5, step: 0.1 },
+    },
+    'Take Profit': {
+      rr1_3: { label: 'TP1 R:R', default: 3, min: 1, max: 10 },
+      rr1_5: { label: 'TP2 R:R', default: 5, min: 1, max: 10 },
+    },
+    'Filters': {
+      ddMax: { label: 'Max DD %', default: 20, min: 5, max: 50, step: 1 },
+      barsSinceMin: { label: 'Min Bars Between', default: 5, min: 1, max: 20 },
+    },
+  },
+
+  _getParams() {
+    const p = { ...DEFAULTS };
+    for (const section of Object.values(this.params)) {
+      for (const [key, def] of Object.entries(section)) {
+        const el = document.getElementById('sp_' + key);
+        if (el) {
+          if (def.type === 'select') p[key] = el.value === '1';
+          else p[key] = +el.value;
+        }
+      }
+    }
+    return p;
+  },
+
   init(ctx) {
+    const P = this._getParams();
     S = {
+      P,
       peakEq: ctx.equity,
       lastEntryBar: -999,
       prevEma7: null,
@@ -33,10 +80,11 @@ export default {
     const orders = [];
     const { candles, candle, positions, equity } = ctx;
     const n = candles.length;
+    const P = S.P;
     if (n < 60) return orders;
 
-    const emaFast = calcEMA(candles, n, 7);
-    const emaSlow = calcEMA(candles, n, 90);
+    const emaFast = calcEMA(candles, n, P.emaFast);
+    const emaSlow = calcEMA(candles, n, P.emaSlow);
     const price = candle.close;
 
     // Indicator overlay for chart
@@ -44,28 +92,28 @@ export default {
     if (!ctx.indicators._emaSlow) ctx.indicators._emaSlow = [];
     ctx.indicators._emaFast[n - 1] = emaFast;
     ctx.indicators._emaSlow[n - 1] = emaSlow;
-    ctx.indicators['EMA 7'] = { values: ctx.indicators._emaFast, color: '#26de81' };
-    ctx.indicators['EMA 90'] = { values: ctx.indicators._emaSlow, color: '#fc5c65' };
+    ctx.indicators[`EMA ${P.emaFast}`] = { values: ctx.indicators._emaFast, color: '#26de81' };
+    ctx.indicators[`EMA ${P.emaSlow}`] = { values: ctx.indicators._emaSlow, color: '#fc5c65' };
 
     const hasLong = positions.some((p) => p.direction === 'long');
     const hasShort = positions.some((p) => p.direction === 'short');
 
     // ATR for sizing
     let atrSum = 0;
-    for (let i = n - 14; i < n; i++) {
+    for (let i = n - P.atrPeriod; i < n; i++) {
       const hi = candles[i].high, lo = candles[i].low, pc = candles[i - 1].close;
       let tr = hi - lo;
       if (Math.abs(hi - pc) > tr) tr = Math.abs(hi - pc);
       if (Math.abs(lo - pc) > tr) tr = Math.abs(lo - pc);
       atrSum += tr;
     }
-    const atr = atrSum / 14;
-    const slPct = (atr * 2 / price) * 100;
+    const atr = atrSum / P.atrPeriod;
+    const slPct = (atr * P.stopMultiple / price) * 100;
 
     // Drawdown throttle
     if (equity > S.peakEq) S.peakEq = equity;
     const dd = (S.peakEq - equity) / S.peakEq;
-    if (dd > 0.20 && positions.length > 0) {
+    if (dd > P.ddMax && positions.length > 0) {
       for (const p of positions) orders.push({ close: true, side: p.direction === 'long' ? 'sell' : 'buy' });
       return orders;
     }
@@ -100,8 +148,8 @@ export default {
       const tracking = S.positions[posKey];
       if (!tracking) continue;
 
-      const rr1_3Price = tracking.entryPrice + (slPct / 100 * tracking.entryPrice * 3) * (pos.direction === 'long' ? 1 : -1);
-      const rr1_5Price = tracking.entryPrice + (slPct / 100 * tracking.entryPrice * 5) * (pos.direction === 'long' ? 1 : -1);
+      const rr1_3Price = tracking.entryPrice + (slPct / 100 * tracking.entryPrice * P.rr1_3) * (pos.direction === 'long' ? 1 : -1);
+      const rr1_5Price = tracking.entryPrice + (slPct / 100 * tracking.entryPrice * P.rr1_5) * (pos.direction === 'long' ? 1 : -1);
 
       if (pos.direction === 'long') {
         // Close 25% at 1:3 RR
@@ -133,8 +181,8 @@ export default {
     if (hasShort && bullishCrossover) orders.push({ close: true, side: 'buy' });
 
     // Entries: trade when price closes outside both EMAs after crossover
-    if (barsSince >= 5 && positions.length === 0) {
-      const size = (equity * 0.05) / (atr * 2);
+    if (barsSince >= P.barsSinceMin && positions.length === 0) {
+      const size = (equity * P.riskPct / 100) / (atr * P.stopMultiple);
       if (bullishCrossover && priceAboveBoth) {
         orders.push({ side: 'buy', type: 'market', size, stopLoss: slPct });
         S.lastEntryBar = n;
